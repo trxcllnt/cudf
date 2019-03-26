@@ -1399,7 +1399,7 @@ class DataFrame(object):
         col_cats = {}
 
         for name in left_on or []:
-            if pd.api.types.is_categorical_dtype(lhs[name]):
+            if pd.api.types.is_categorical_dtype(lhs[name].dtype):
                 lcats = lhs[name].cat.categories
                 rcats = rhs[name].cat.categories
                 if how == 'rhs':
@@ -1418,7 +1418,7 @@ class DataFrame(object):
                     rhs[name] = rhs[name]._column.as_numerical
                 col_cats[name] = cats
         for name in right_on or []:
-            if pd.api.types.is_categorical_dtype(rhs[name]):
+            if pd.api.types.is_categorical_dtype(rhs[name].dtype):
                 lcats = lhs[name].cat.categories
                 rcats = rhs[name].cat.categories
                 if how == 'left':
@@ -1437,11 +1437,11 @@ class DataFrame(object):
                     rhs[name] = rhs[name]._column.as_numerical
                 col_cats[name] = cats
         for name, col in lhs._cols.items():
-            if pd.api.types.is_categorical_dtype(col) and name not in on:
+            if pd.api.types.is_categorical_dtype(col.dtype) and name not in on:
                 f_n = fix_name(name, lsuffix)
                 col_cats[f_n] = lhs[name].cat.categories
         for name, col in rhs._cols.items():
-            if pd.api.types.is_categorical_dtype(col) and name not in on:
+            if pd.api.types.is_categorical_dtype(col.dtype) and name not in on:
                 f_n = fix_name(name, rsuffix)
                 col_cats[f_n] = rhs[name].cat.categories
 
@@ -1631,7 +1631,7 @@ class DataFrame(object):
 
         cat_join = False
 
-        if pd.api.types.is_categorical_dtype(lhs[idx_col_name]):
+        if pd.api.types.is_categorical_dtype(lhs[idx_col_name].dtype):
             cat_join = True
             lcats = lhs[idx_col_name].cat.categories
             rcats = rhs[idx_col_name].cat.categories
