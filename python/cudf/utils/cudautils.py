@@ -877,8 +877,9 @@ def gpu_elem_or(a, b, out):
 def elem_and_or(a, b, operation)
     assert a.size == b.size #Different length objects
     out = rmm.device_array_like(a)
-    if operation == "and":
-        gpu_elem_and.forall(a.size)(a, b, out)
-    else operation == "or":
-        gpu_elem_or.forall(a.size)(a, b, out)
+    if out.size > 0:
+        if operation == "and":
+            gpu_elem_and.forall(out.size)(a, b, out)
+        else operation == "or":
+            gpu_elem_or.forall(out.size)(a, b, out)
     return out
