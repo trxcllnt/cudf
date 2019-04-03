@@ -856,6 +856,63 @@ class DataFrame(object):
             outdf._drop_column(c)
         return outdf
 
+    def dropna(self, axis="index", how="all"):
+        """
+        Drop columns or rows with `null` values
+
+        Parameters
+        ----------
+        axis : int or string
+            0 or "index" - Drop by row/index
+            1 or "column" - Drop by column
+        how : string
+            "any" - Drop if any `null` values exist
+            "all" - Drop if all values are `null`
+
+        Returns
+        -------
+        DataFrame
+
+        Notes
+        -----
+        Differences from pandas:
+            * Drops `null` values and not `NaN`
+        """
+        def get_is_na_mask(obj):
+            return cudautils.is_na_mask(data=obj.data.to_gpu_array()
+                                        mask=obj.mask.to_gpu_array())
+
+        #Change this to use gpu_apply_stencil for 0.7
+        if axis==0 or axis=="index":
+            gathermask = None
+            for k, c in self._cols.items():
+                if gathermask is None:
+                    gathermask = get_is_na_mask(self[k])
+                else:
+                    if how=="all":
+                        gathermask = cudautils.elem_and_or(
+                            gathermask, get_is_na_mask(self[k]), "and")
+                    elif how=="any":
+                        gathermask = cudautils.elem_and_or(
+                            gathermask, get_is_na_mask(self[k]), "or")
+
+                value = np.random.randn(0,0).astype(c._data.dtype)
+                c.fillna(value)
+
+            return self[gathermask]
+
+        elif axis==1 or axis=="column":
+            columns = []
+            for k, c in self._cols.items():
+                null_count = c.null_count
+                if how=="all" and null_count==len(c):
+                    columns.append(c.name)
+                elif how=="any" and null_count>0:
+                    columns.append(c.name)
+
+            return self.drop(columns)
+
+
     def drop_column(self, name):
         """Drop a column by *name*
         """

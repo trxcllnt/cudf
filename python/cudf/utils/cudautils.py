@@ -424,6 +424,29 @@ def reverse_array(data, out=None):
 
 
 #
+# Find NA
+#
+
+
+@cuda.jit
+def gpu_is_na(validity, out):
+    tid = cuda.grid(1)
+    if tid < out.size:
+        valid = mask_get(validity, tid)
+        if valid:
+            out[tid] = True
+        else:
+            out[tid] = False
+
+
+def is_na_mask(data, mask):
+    out = rmm.device_array_like(data)
+    if data.size > 0:
+        gpu_is_na.forall(out.size)(mask,out)
+    return out
+
+
+#
 # Fill NA
 #
 
@@ -830,3 +853,32 @@ def boolean_array_to_index_array(bool_array):
     indices = arange(len(bool_array))
     _, selinds = copy_to_dense(indices, mask=boolbits)
     return selinds
+
+
+#
+# Elementwise AND and OR
+#
+
+
+@cuda.jit
+def gpu_elem_and(a, b):
+    i = cuda.grid(1)
+    if i < a.size:
+        out[i] = a and b
+
+
+@cuda.jit
+def gpu_elem_or(a, b, out):
+    i = cuda.grid(1)
+    if i < a.size:
+        out[i] = a or b
+
+
+def elem_and_or(a, b, operation)
+    assert a.size == b.size #Different length objects
+    out = rmm.device_array_like(a)
+    if operation == "and":
+        gpu_elem_and.forall(a.size)(a, b, out)
+    else operation == "or":
+        gpu_elem_or.forall(a.size)(a, b, out)
+    return out
