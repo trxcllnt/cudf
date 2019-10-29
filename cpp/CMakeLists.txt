@@ -61,6 +61,22 @@ if(CMAKE_COMPILER_IS_GNUCXX)
     endif(CMAKE_CXX11_ABI)
 endif(CMAKE_COMPILER_IS_GNUCXX)
 
+set(USE_CCACHE ON)
+
+if(USE_CCACHE)
+    find_program(CCACHE_BINARY ccache)
+    if(CCACHE_BINARY)
+        message(STATUS "Using ccache: ${CCACHE_BINARY}")
+        set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE_BINARY})
+        set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${CCACHE_BINARY})
+        # let ccache preserve C++ comments, because some of them may be meaningful to the compiler
+        set(ENV{CCACHE_COMMENTS} "1")
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_BINARY}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_BINARY}")
+        set(CMAKE_CUDA_COMPILER_LAUNCHER "${CCACHE_BINARY}")
+    endif(CCACHE_BINARY)
+endif()
+
 if(CMAKE_CUDA_COMPILER_VERSION)
   # Compute the version. from  CMAKE_CUDA_COMPILER_VERSION
   string(REGEX REPLACE "([0-9]+)\\.([0-9]+).*" "\\1" CUDA_VERSION_MAJOR ${CMAKE_CUDA_COMPILER_VERSION})

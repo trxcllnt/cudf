@@ -6,6 +6,22 @@ if(NOT CMAKE_CUDA_COMPILER)
   message(SEND_ERROR "CMake cannot locate a CUDA compiler")
 endif()
 
+set(USE_CCACHE ON)
+
+if(USE_CCACHE)
+    find_program(CCACHE_BINARY ccache)
+    if(CCACHE_BINARY)
+        message(STATUS "Using ccache: ${CCACHE_BINARY}")
+        set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE_BINARY})
+        set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${CCACHE_BINARY})
+        # let ccache preserve C++ comments, because some of them may be meaningful to the compiler
+        set(ENV{CCACHE_COMMENTS} "1")
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_BINARY}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_BINARY}")
+        set(CMAKE_CUDA_COMPILER_LAUNCHER "${CCACHE_BINARY}")
+    endif(CCACHE_BINARY)
+endif()
+
 ###################################################################################################
 # - common test utils -----------------------------------------------------------------------------
 
