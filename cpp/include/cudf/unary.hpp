@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION.
+ * Copyright (c) 2018-2019, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,43 +14,33 @@
  * limitations under the License.
  */
 
-#pragma once
+#pragma once 
 
-#include "types.hpp"
+#include <cudf/cudf.h>
+#include <cudf/types.hpp>
 
-namespace cudf
-{
-
-/**
- * @brief Types of unary operations that can be performed on data.
- */
-enum unary_op{
-  SIN,          ///< Trigonometric sine
-  COS,          ///< Trigonometric cosine
-  TAN,          ///< Trigonometric tangent
-  ARCSIN,       ///< Trigonometric sine inverse
-  ARCCOS,       ///< Trigonometric cosine inverse
-  ARCTAN,       ///< Trigonometric tangent inverse
-  EXP,          ///< Exponential (base e, Euler number)
-  LOG,          ///< Natural Logarithm (base e)
-  SQRT,         ///< Square-root (x^0.5)
-  CEIL,         ///< Smallest integer value not less than arg
-  FLOOR,        ///< largest integer value not greater than arg
-  ABS,          ///< Absolute value
-  BIT_INVERT,   ///< Bitwise Not (~)
-  NOT,          ///< Logical Not (!)
-};
+namespace cudf {
+namespace experimental {
 
 /**
- * @brief  Performs unary op on all values in column
- * 
- * @param column_view Input column
- * @param unary_op operation to perform
+ * @brief Creates a column of `BOOL8` elements where for every element in `input` `true`
+ * indicates the value is null and `false` indicates the value is valid.
  *
- * @returns unique_ptr<column> Result of the operation
+ * @param[in] input A `column_view` as input
+ *
+ * @returns std::unique_ptr<cudf::column> A non-nulalble column of `BOOL8` elements with `true` representing `null` values.
  */
-// std::unique_ptr<column> unary_operation(column_view const& input, unary_op op);
+std::unique_ptr<cudf::column> is_null(cudf::column_view const& input);
 
+/**
+ * @brief Creates a column of `BOOL8` elements where for every element in `input` `true`
+ * indicates the value is valid and `false` indicates the value is null.
+ *
+ * @param[in] input A `column_view` as input
+ *
+ * @returns std::unique_ptr<cudf::column> A non-nulalble column of `BOOL8` elements with `false` representing `null` values.
+ */
+std::unique_ptr<cudf::column> is_valid(cudf::column_view const& input);
 
 /**
  * @brief  Casts data from dtype specified in input to dtype specified in output
@@ -67,27 +57,5 @@ enum unary_op{
  */
 std::unique_ptr<column> cast(column_view const& input, data_type out_type);
 
-
-/**
- * @brief Checks the `input` column for `null` values, and creates a `bool`
- * column of same size with `true` representing `null` values and `false` for
- * other.
- *
- * @param input A column_view as input
- *
- * @returns unique_ptr<column> A column of type GDF_BOOL8 with `true` representing `null` values.
- */
-// std::unique_ptr<column> is_null(column_view const& input);
-
-/**
- * @brief Checks the `input` column for `null` values, and creates a `bool`
- * column of same size with `false` representing `null` values and `true` for
- * other.
- *
- * @param input A column_view as input
- *
- * @returns unique_ptr<column> A column of type GDF_BOOL8 with `false` representing `null` values.
- */
-// std::unique_ptr<column> is_not_null(column_view const& input);
-
+} // namespace experimental
 } // namespace cudf
