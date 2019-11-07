@@ -15,11 +15,12 @@
  */
 
 #include <cudf/unary.hpp>
+#include <cudf/null_mask.hpp>
 
 #include <cudf/column/column.hpp>
 #include <cudf/column/column_view.hpp>
 #include <cudf/column/column_factories.hpp>
-#include <cudf/column/column_device_view.hpp>
+#include <cudf/column/column_device_view.cuh>
 
 #include <cudf/utilities/traits.hpp>
 #include <cudf/wrappers/timestamps.hpp>
@@ -32,12 +33,12 @@
 namespace cudf {
 namespace detail {
 
-#define IS_TIMESTAMP(TYPE)                       \
+#define IS_TIMESTAMP(TYPE)                     ( \
 std::is_same<TYPE, cudf::timestamp_D>::value  || \
 std::is_same<TYPE, cudf::timestamp_s>::value  || \
 std::is_same<TYPE, cudf::timestamp_ms>::value || \
 std::is_same<TYPE, cudf::timestamp_us>::value || \
-std::is_same<TYPE, cudf::timestamp_ns>::value
+std::is_same<TYPE, cudf::timestamp_ns>::value)
 
   template <typename FromType>
   struct unary_cast {
@@ -51,23 +52,38 @@ std::is_same<TYPE, cudf::timestamp_ns>::value
     ) : input(inp), output(out) {}
 
     template <typename ToType>
-    typename std::enable_if_t<IS_TIMESTAMP(ToType), void>
+    typename std::enable_if_t<std::is_same<cudf::string_view, ToType>::value ||
+                              std::is_same<cudf::string_view, FromType>::value, void>
+    operator ()(cudaStream_t stream) {
+      CUDF_FAIL("Column type must be numeric");
+    }
+
+    template <typename ToType>
+    typename std::enable_if_t<IS_TIMESTAMP(FromType) && is_numeric<ToType>(), void>
     operator ()(cudaStream_t stream) {
       thrust::tabulate(rmm::exec_policy(stream)->on(stream),
                         output.begin<ToType>(), output.end<ToType>(),
                         [=] __device__ (size_type i) {
-                          return simt::std::chrono::time_point_cast<ToType>(input.element<FromType>(i));
+                          return static_cast<ToType>(input.element<FromType>(i).time_since_epoch().count());
                         });
     }
 
     template <typename ToType>
-    // typename std::enable_if_t<
-    //   std::is_arithmetic<ToType>::value ||
-    //   std::is_same<TypeTo, cudf::bool8>::value ||
-    //   std::is_same<TypeTo, cudf::category>::value ||
-    //   std::is_same<TypeTo, cudf::nvstring_category>::value,
-    // void>
-    void operator ()(cudaStream_t stream) {
+    typename std::enable_if_t<IS_TIMESTAMP(FromType) && IS_TIMESTAMP(ToType), void>
+    operator ()(cudaStream_t stream) {
+      thrust::tabulate(rmm::exec_policy(stream)->on(stream),
+                        output.begin<ToType>(), output.end<ToType>(),
+                        [=] __device__ (size_type i) {
+                          return simt::std::chrono::time_point_cast<typename ToType::duration>(input.element<FromType>(i));
+                        });
+    }
+
+    template <typename ToType>
+    typename std::enable_if_t<
+      !(IS_TIMESTAMP(FromType) && IS_TIMESTAMP(ToType)) &&
+      !(IS_TIMESTAMP(FromType) && is_numeric<ToType>()) &&
+      !(std::is_same<cudf::string_view, ToType>::value || std::is_same<cudf::string_view, FromType>::value), void>
+    operator ()(cudaStream_t stream) {
       thrust::tabulate(rmm::exec_policy(stream)->on(stream),
                         output.begin<ToType>(), output.end<ToType>(),
                         [=] __device__ (size_type i) {
@@ -75,30 +91,6 @@ std::is_same<TYPE, cudf::timestamp_ns>::value
                         });
     }
   };
-
-  // template <typename FromType>
-  // struct cast_arithmetic {
-
-  //   static_assert(!is_timestamp<FromType>(),"");
-
-  //   column_device_view input;
-  //   mutable_column_view output;
-
-  //   cast_arithmetic(
-  //     column_device_view inp,
-  //     mutable_column_view out
-  //   ) : input(inp), output(out) {}
-
-  //   template <typename ToType>
-  //   typename std::enable_if_t<IS_TIMESTAMP(ToType), void>
-  //   operator ()(cudaStream_t stream) {
-  //     thrust::tabulate(rmm::exec_policy(stream)->on(stream),
-  //                       output.begin<ToType>(), output.end<ToType>(),
-  //                       [=] __device__ (size_type i) {
-  //                         return static_cast<ToType>(input.element<FromType>(i));
-  //                       });
-  //   }
-  // };
 
   struct unary_cast_launcher {
 
@@ -111,14 +103,27 @@ std::is_same<TYPE, cudf::timestamp_ns>::value
     ) : input(inp), output(out) {}
 
     template <typename FromType>
+    typename std::enable_if_t<IS_TIMESTAMP(FromType) || is_numeric<FromType>(), void>
     operator ()(cudaStream_t stream) {
       experimental::type_dispatcher(input.type(), unary_cast<FromType>{input, output}, stream);
+    }
+
+    template <typename FromType>
+    typename std::enable_if_t<!IS_TIMESTAMP(FromType) && !is_numeric<FromType>(), void>
+    operator ()(cudaStream_t stream) {
+      CUDF_FAIL("Column type must be numeric");
     }
   };
 
 #undef IS_TIMESTAMP
 }
 
-std::unique_ptr<column> cast(column_view const& input, data_type out_type) {
+std::unique_ptr<column> cast(column_view const& input, data_type type, cudaStream_t stream, rmm::mr::device_memory_resource* mr) {
+  CUDF_EXPECTS(is_fixed_width(type), "Unary cast-to type must be fixed-width.");
+  auto output = std::make_unique<cudf::column>(type, input.size(),
+                                               rmm::device_buffer{input.size() * cudf::size_of(type), stream, mr},
+                                               copy_bitmask(input, stream, mr), input.null_count());
+  experimental::type_dispatcher(type, detail::unary_cast_launcher{*column_device_view::create(input), *output}, stream);
+  return output;
 }
 }

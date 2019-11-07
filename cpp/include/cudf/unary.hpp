@@ -18,6 +18,7 @@
 
 #include <cudf/cudf.h>
 #include <cudf/types.hpp>
+#include <rmm/thrust_rmm_allocator.h>
 
 namespace cudf {
 namespace experimental {
@@ -55,7 +56,8 @@ std::unique_ptr<cudf::column> is_valid(cudf::column_view const& input);
  *
  * @returns unique_ptr<column> Result of the cast operation
  */
-std::unique_ptr<column> cast(column_view const& input, data_type out_type);
+std::unique_ptr<column> cast(column_view const& input, data_type out_type, cudaStream_t stream = 0,
+                             rmm::mr::device_memory_resource* mr = rmm::mr::get_default_resource());
 
 } // namespace experimental
 } // namespace cudf
