@@ -74,7 +74,9 @@ std::is_same<TYPE, cudf::timestamp_ns>::value)
       thrust::tabulate(rmm::exec_policy(stream)->on(stream),
                         output.begin<ToType>(), output.end<ToType>(),
                         [=] __device__ (size_type i) {
-                          return simt::std::chrono::time_point_cast<typename ToType::duration>(input.element<FromType>(i));
+                          return simt::std::chrono::time_point_cast<typename ToType::duration>(
+                            input.element<FromType>(i)
+                          ).time_since_epoch().count();
                         });
     }
 
