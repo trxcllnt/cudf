@@ -158,7 +158,12 @@ __global__ void count_set_bits_kernel(bitmask_type const *bitmask,
   }
 }
 
-// TODO: document
+/**
+ * @brief Convenience function to get offset word from a bitmask
+ * 
+ * @see copy_offset_bitmask
+ * @see offset_bitmask_and
+ */
 __device__ bitmask_type get_mask_offset_word(
   bitmask_type const *__restrict__ source,
   size_type destination_word_index,
@@ -249,6 +254,16 @@ concatenate_masks_kernel(
   }
 }
 
+/**
+ * @brief Computes the bitwise AND of two bitmasks
+ * 
+ * @param destination The bitmask to write result into
+ * @param source1 The first source mask
+ * @param source2 The second source mask
+ * @param bit_offset1 The offset into @p source1 from where to begin
+ * @param bit_offset2 The offset into @p source2 from where to begin
+ * @param number_of_mask_words The number of words of type bitmask_type to copy
+ */
 __global__ void offset_bitmask_and(bitmask_type *__restrict__ destination,
                                     bitmask_type const *__restrict__ source1,
                                     bitmask_type const *__restrict__ source2,
