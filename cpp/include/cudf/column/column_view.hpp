@@ -391,11 +391,11 @@ class mutable_column_view : public detail::column_view_base {
    * @TODO Clarify behavior for variable-width types.
    *
    * @tparam T The type to cast to
-   * @return T const* Typed pointer to underlying data, including the offset
+   * @return T* Typed pointer to underlying data, including the offset
    *---------------------------------------------------------------------------**/
   template <typename T>
   T* data() const noexcept {
-    return head<T>() + _offset;
+    return const_cast<T*>(detail::column_view_base::data<T>());
   }
 
   /**---------------------------------------------------------------------------*
@@ -403,11 +403,11 @@ class mutable_column_view : public detail::column_view_base {
    * casted to the specified type.
    *
    * @tparam T The desired type
-   * @return T const* Pointer to the first element after casting
+   * @return T* Pointer to the first element after casting
    *---------------------------------------------------------------------------**/
   template <typename T>
   T* begin() const noexcept {
-    return data<T>();
+    return const_cast<T*>(detail::column_view_base::begin<T>());
   }
 
   /**---------------------------------------------------------------------------*
@@ -415,11 +415,11 @@ class mutable_column_view : public detail::column_view_base {
    * the specified type.
    *
    * @tparam T The desired type
-   * @return T const* Pointer to one past the last element after casting
+   * @return T* Pointer to one past the last element after casting
    *---------------------------------------------------------------------------**/
   template <typename T>
   T* end() const noexcept {
-    return begin<T>() + size();
+    return const_cast<T*>(detail::column_view_base::end<T>());
   }
 
   /**---------------------------------------------------------------------------*

@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
+#include "cudf/types.hpp"
 #include <cudf/cudf.h>
+#include <cudf/utilities/chrono.hpp>
+#include <cudf/wrappers/timestamps.hpp>
+#include <initializer_list>
 #include <tests/utilities/base_fixture.hpp>
 #include <cudf/unary.hpp>
 #include <cudf/column/column_factories.hpp>
@@ -145,3 +149,146 @@ TYPED_TEST(IsNotNull, EmptyColumns)
     cudf::test::expect_columns_equal(expected, got->view());
 }
 
+static const auto test_timestamps_D = std::vector<int32_t>{
+    -1528, // 1965-10-26
+    17716, // 2018-07-04
+    19382, // 2023-01-25
+};
+
+static const auto test_timestamps_s = std::vector<int64_t>{
+    -131968728, // 1965-10-26 14:01:12
+    1530705600, // 2018-07-04 12:00:00
+    1674631932, // 2023-01-25 07:32:12
+};
+
+static const auto test_timestamps_ms = std::vector<int64_t>{
+    -131968727238, // 1965-10-26 14:01:12.762
+    1530705600000, // 2018-07-04 12:00:00.000
+    1674631932929, // 2023-01-25 07:32:12.929
+};
+
+static const auto test_timestamps_us = std::vector<int64_t>{
+    -131968727238000, // 1965-10-26 14:01:12.762000000
+    1530705600000000, // 2018-07-04 12:00:00.000000000
+    1674631932929000, // 2023-01-25 07:32:12.929000000
+};
+
+static const auto test_timestamps_ns = std::vector<int64_t>{
+    -131968727238000000, // 1965-10-26 14:01:12.762000000
+    1530705600000000000, // 2018-07-04 12:00:00.000000000
+    1674631932929000000, // 2023-01-25 07:32:12.929000000
+};
+
+template <typename T, typename R>
+inline auto make_column(std::vector<R> vec) {
+  return cudf::test::fixed_width_column_wrapper<T>{vec.begin(), vec.end()};
+}
+
+template <typename T>
+inline auto make_data_type() {
+  return cudf::data_type{cudf::experimental::type_to_id<T>()};
+}
+
+template <typename T, typename R>
+void validate_cast_results(cudf::column_view expected, cudf::column_view actual) {
+    using namespace cudf::test;
+    // round-trip through the host because sizeof(T) may not equal sizeof(R)
+    std::vector<T> h_data;
+    std::vector<cudf::bitmask_type> h_null_mask;
+    std::tie(h_data, h_null_mask) = to_host<T>(expected);
+    expect_columns_equal(actual, make_column<R, T>(h_data));
+}
+
+struct CastTimestamps : public cudf::test::BaseFixture {};
+TEST_F(CastTimestamps, IsIdempotent) {
+
+    using namespace cudf::test;
+
+    auto timestamps_D = make_column<cudf::timestamp_D>(test_timestamps_D);
+    auto timestamps_s = make_column<cudf::timestamp_s>(test_timestamps_s);
+    auto timestamps_ms = make_column<cudf::timestamp_ms>(test_timestamps_ms);
+    auto timestamps_us = make_column<cudf::timestamp_us>(test_timestamps_us);
+    auto timestamps_ns = make_column<cudf::timestamp_ns>(test_timestamps_ns);
+
+    auto timestamps_D_rep = cudf::experimental::cast(timestamps_D, make_data_type<cudf::timestamp_D::rep>());
+    auto timestamps_s_rep = cudf::experimental::cast(timestamps_s, make_data_type<cudf::timestamp_s::rep>());
+    auto timestamps_ms_rep = cudf::experimental::cast(timestamps_ms, make_data_type<cudf::timestamp_ms::rep>());
+    auto timestamps_us_rep = cudf::experimental::cast(timestamps_us, make_data_type<cudf::timestamp_us::rep>());
+    auto timestamps_ns_rep = cudf::experimental::cast(timestamps_ns, make_data_type<cudf::timestamp_ns::rep>());
+
+    auto timestamps_D_got = cudf::experimental::cast(*timestamps_D_rep, cudf::data_type{cudf::TIMESTAMP_DAYS});
+    auto timestamps_s_got = cudf::experimental::cast(*timestamps_s_rep, cudf::data_type{cudf::TIMESTAMP_SECONDS});
+    auto timestamps_ms_got = cudf::experimental::cast(*timestamps_ms_rep, cudf::data_type{cudf::TIMESTAMP_MILLISECONDS});
+    auto timestamps_us_got = cudf::experimental::cast(*timestamps_us_rep, cudf::data_type{cudf::TIMESTAMP_MICROSECONDS});
+    auto timestamps_ns_got = cudf::experimental::cast(*timestamps_ns_rep, cudf::data_type{cudf::TIMESTAMP_NANOSECONDS});
+
+    validate_cast_results<cudf::timestamp_D, cudf::timestamp_D>(timestamps_D, *timestamps_D_got);
+    validate_cast_results<cudf::timestamp_s, cudf::timestamp_s>(timestamps_s, *timestamps_s_got);
+    validate_cast_results<cudf::timestamp_ms, cudf::timestamp_ms>(timestamps_ms, *timestamps_ms_got);
+    validate_cast_results<cudf::timestamp_us, cudf::timestamp_us>(timestamps_us, *timestamps_us_got);
+    validate_cast_results<cudf::timestamp_ns, cudf::timestamp_ns>(timestamps_ns, *timestamps_ns_got);
+}
+
+template <typename T>
+struct CastToTimestamps : public cudf::test::BaseFixture {};
+
+TYPED_TEST_CASE(CastToTimestamps, cudf::test::NumericTypes);
+
+TYPED_TEST(CastToTimestamps, AllValid)
+{
+    using T = TypeParam;
+    using namespace cudf::test;
+
+    auto timestamps_D = make_column<T>(test_timestamps_D);
+    auto timestamps_s = make_column<T>(test_timestamps_s);
+    auto timestamps_ms = make_column<T>(test_timestamps_ms);
+    auto timestamps_us = make_column<T>(test_timestamps_us);
+    auto timestamps_ns = make_column<T>(test_timestamps_ns);
+
+    auto timestamps_D_got = cudf::experimental::cast(timestamps_D, cudf::data_type{cudf::TIMESTAMP_DAYS});
+    auto timestamps_s_got = cudf::experimental::cast(timestamps_s, cudf::data_type{cudf::TIMESTAMP_SECONDS});
+    auto timestamps_ms_got = cudf::experimental::cast(timestamps_ms, cudf::data_type{cudf::TIMESTAMP_MILLISECONDS});
+    auto timestamps_us_got = cudf::experimental::cast(timestamps_us, cudf::data_type{cudf::TIMESTAMP_MICROSECONDS});
+    auto timestamps_ns_got = cudf::experimental::cast(timestamps_ns, cudf::data_type{cudf::TIMESTAMP_NANOSECONDS});
+
+    validate_cast_results<T, cudf::timestamp_D>(timestamps_D, *timestamps_D_got);
+    validate_cast_results<T, cudf::timestamp_s>(timestamps_s, *timestamps_s_got);
+    validate_cast_results<T, cudf::timestamp_ms>(timestamps_ms, *timestamps_ms_got);
+    validate_cast_results<T, cudf::timestamp_us>(timestamps_us, *timestamps_us_got);
+    validate_cast_results<T, cudf::timestamp_ns>(timestamps_ns, *timestamps_ns_got);
+}
+
+template <typename T>
+struct CastFromTimestamps : public cudf::test::BaseFixture {};
+
+TYPED_TEST_CASE(CastFromTimestamps, cudf::test::NumericTypes);
+
+TYPED_TEST(CastFromTimestamps, AllValid)
+{
+    using T = TypeParam;
+    using namespace cudf::test;
+
+    auto timestamps_D = make_column<cudf::timestamp_D>(test_timestamps_D);
+    auto timestamps_s = make_column<cudf::timestamp_s>(test_timestamps_s);
+    auto timestamps_ms = make_column<cudf::timestamp_ms>(test_timestamps_ms);
+    auto timestamps_us = make_column<cudf::timestamp_us>(test_timestamps_us);
+    auto timestamps_ns = make_column<cudf::timestamp_ns>(test_timestamps_ns);
+
+    auto timestamps_D_exp = make_column<T>(test_timestamps_D);
+    auto timestamps_s_exp = make_column<T>(test_timestamps_s);
+    auto timestamps_ms_exp = make_column<T>(test_timestamps_ms);
+    auto timestamps_us_exp = make_column<T>(test_timestamps_us);
+    auto timestamps_ns_exp = make_column<T>(test_timestamps_ns);
+
+    auto timestamps_D_got = cudf::experimental::cast(timestamps_D, make_data_type<T>());
+    auto timestamps_s_got = cudf::experimental::cast(timestamps_s, make_data_type<T>());
+    auto timestamps_ms_got = cudf::experimental::cast(timestamps_ms, make_data_type<T>());
+    auto timestamps_us_got = cudf::experimental::cast(timestamps_us, make_data_type<T>());
+    auto timestamps_ns_got = cudf::experimental::cast(timestamps_ns, make_data_type<T>());
+
+    validate_cast_results<T, T>(timestamps_D_exp, *timestamps_D_got);
+    validate_cast_results<T, T>(timestamps_s_exp, *timestamps_s_got);
+    validate_cast_results<T, T>(timestamps_ms_exp, *timestamps_ms_got);
+    validate_cast_results<T, T>(timestamps_us_exp, *timestamps_us_got);
+    validate_cast_results<T, T>(timestamps_ns_exp, *timestamps_ns_got);
+}
