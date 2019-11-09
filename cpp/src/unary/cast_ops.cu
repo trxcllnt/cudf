@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-#include <cudf/unary.hpp>
 #include <cudf/null_mask.hpp>
+#include <cudf/unary.hpp>
 
 #include <cudf/column/column.hpp>
-#include <cudf/column/column_view.hpp>
-#include <cudf/column/column_factories.hpp>
 #include <cudf/column/column_device_view.cuh>
+#include <cudf/column/column_factories.hpp>
+#include <cudf/column/column_view.hpp>
 
 #include <cudf/utilities/traits.hpp>
 #include <cudf/wrappers/timestamps.hpp>
 
 #include <rmm/thrust_rmm_allocator.h>
-#include <thrust/tabulate.h>
 #include <thrust/execution_policy.h>
+#include <thrust/tabulate.h>
 
 namespace cudf {
 namespace experimental {
@@ -75,118 +75,117 @@ struct cast_timestamp_to_timestamp {
   }
 };
 
+template <typename T>
+struct dispatch_numeric_cast {
+  static_assert(is_numeric<T>(), "");
+
+  column_device_view input;
+  mutable_column_view output;
+
+  dispatch_numeric_cast(column_device_view inp, mutable_column_view out)
+      : input(inp), output(out) {}
+
+  template <typename R>
+  typename std::enable_if_t<is_numeric<R>(), void> operator()(
+      cudaStream_t stream) {
+    thrust::tabulate(rmm::exec_policy(stream)->on(stream), output.begin<R>(),
+                     output.end<R>(), cast_numeric<T, R>{input});
+  }
+
+  template <typename R>
+  typename std::enable_if_t<is_timestamp<R>(), void> operator()(
+      cudaStream_t stream) {
+    thrust::tabulate(rmm::exec_policy(stream)->on(stream), output.begin<R>(),
+                     output.end<R>(), cast_numeric_to_timestamp<T, R>{input});
+  }
+
+  template <typename R>
+  typename std::enable_if_t<!is_numeric<R>() && !is_timestamp<R>(), void>
+  operator()(cudaStream_t stream) {
+    CUDF_FAIL("Column type must be numeric");
+  }
+};
+
+template <typename T>
+struct dispatch_timestamp_cast {
+  static_assert(is_timestamp<T>(), "");
+
+  column_device_view input;
+  mutable_column_view output;
+
+  dispatch_timestamp_cast(column_device_view inp, mutable_column_view out)
+      : input(inp), output(out) {}
+
+  template <typename R>
+  typename std::enable_if_t<is_numeric<R>(), void> operator()(
+      cudaStream_t stream) {
+    thrust::tabulate(rmm::exec_policy(stream)->on(stream), output.begin<R>(),
+                     output.end<R>(), cast_timestamp_to_numeric<T, R>{input});
+  }
+
+  template <typename R>
+  typename std::enable_if_t<is_timestamp<R>(), void> operator()(
+      cudaStream_t stream) {
+    thrust::tabulate(rmm::exec_policy(stream)->on(stream), output.begin<R>(),
+                     output.end<R>(), cast_timestamp_to_timestamp<T, R>{input});
+  }
+
+  template <typename R>
+  typename std::enable_if_t<!is_numeric<R>() && !is_timestamp<R>(), void>
+  operator()(cudaStream_t stream) {
+    CUDF_FAIL("Column type must be numeric");
+  }
+};
+
+struct dispatch_unary_cast {
+  column_device_view input;
+  mutable_column_view output;
+
+  dispatch_unary_cast(column_device_view inp, mutable_column_view out)
+      : input(inp), output(out) {}
+
   template <typename T>
-  struct dispatch_numeric_cast {
-
-    static_assert(is_numeric<T>(), "");
-
-    column_device_view input;
-    mutable_column_view output;
-
-    dispatch_numeric_cast(column_device_view inp, mutable_column_view out)
-        : input(inp), output(out) {}
-
-    template <typename R>
-    typename std::enable_if_t<is_numeric<R>(), void>
-    operator ()(cudaStream_t stream) {
-      thrust::tabulate(rmm::exec_policy(stream)->on(stream),
-                       output.begin<R>(), output.end<R>(),
-                       cast_numeric<T, R>{input});
-    }
-
-    template <typename R>
-    typename std::enable_if_t<is_timestamp<R>(), void>
-    operator ()(cudaStream_t stream) {
-      thrust::tabulate(rmm::exec_policy(stream)->on(stream),
-                       output.begin<R>(), output.end<R>(),
-                       cast_numeric_to_timestamp<T, R>{input});
-    }
-
-    template <typename R>
-    typename std::enable_if_t<!is_numeric<R>() && !is_timestamp<R>(), void>
-    operator ()(cudaStream_t stream) {
-      CUDF_FAIL("Column type must be numeric");
-    }
-  };
+  typename std::enable_if_t<is_numeric<T>(), void> operator()(
+      cudaStream_t stream) {
+    experimental::type_dispatcher(
+        output.type(), dispatch_numeric_cast<T>{input, output}, stream);
+  }
 
   template <typename T>
-  struct dispatch_timestamp_cast {
+  typename std::enable_if_t<is_timestamp<T>(), void> operator()(
+      cudaStream_t stream) {
+    experimental::type_dispatcher(
+        output.type(), dispatch_timestamp_cast<T>{input, output}, stream);
+  }
 
-    static_assert(is_timestamp<T>(), "");
+  template <typename T>
+  typename std::enable_if_t<!is_timestamp<T>() && !is_numeric<T>(), void>
+  operator()(cudaStream_t stream) {
+    CUDF_FAIL("Column type must be numeric");
+  }
+};
+}  // namespace detail
 
-    column_device_view input;
-    mutable_column_view output;
-
-    dispatch_timestamp_cast(column_device_view inp, mutable_column_view out)
-        : input(inp), output(out) {}
-
-    template <typename R>
-    typename std::enable_if_t<is_numeric<R>(), void>
-    operator ()(cudaStream_t stream) {
-      thrust::tabulate(rmm::exec_policy(stream)->on(stream),
-                       output.begin<R>(), output.end<R>(),
-                       cast_timestamp_to_numeric<T, R>{input});
-    }
-
-    template <typename R>
-    typename std::enable_if_t<is_timestamp<R>(), void>
-    operator ()(cudaStream_t stream) {
-      thrust::tabulate(rmm::exec_policy(stream)->on(stream),
-                       output.begin<R>(), output.end<R>(),
-                       cast_timestamp_to_timestamp<T, R>{input});
-    }
-
-    template <typename R>
-    typename std::enable_if_t<!is_numeric<R>() && !is_timestamp<R>(), void>
-    operator ()(cudaStream_t stream) {
-      CUDF_FAIL("Column type must be numeric");
-    }
-  };
-
-  struct dispatch_unary_cast {
-
-    column_device_view input;
-    mutable_column_view output;
-
-    dispatch_unary_cast(column_device_view inp, mutable_column_view out)
-        : input(inp), output(out) {}
-
-    template <typename T>
-    typename std::enable_if_t<is_numeric<T>(), void>
-    operator ()(cudaStream_t stream) {
-      experimental::type_dispatcher(output.type(), dispatch_numeric_cast<T>{input, output}, stream);
-    }
-
-    template <typename T>
-    typename std::enable_if_t<is_timestamp<T>(), void>
-    operator ()(cudaStream_t stream) {
-      experimental::type_dispatcher(output.type(), dispatch_timestamp_cast<T>{input, output}, stream);
-    }
-
-    template <typename T>
-    typename std::enable_if_t<!is_timestamp<T>() && !is_numeric<T>(), void>
-    operator ()(cudaStream_t stream) {
-      CUDF_FAIL("Column type must be numeric");
-    }
-  };
-}
-
-std::unique_ptr<column> cast(column_view const& input, data_type type, cudaStream_t stream, rmm::mr::device_memory_resource* mr) {
-
+std::unique_ptr<column> cast(column_view const& input,
+                             data_type type,
+                             cudaStream_t stream,
+                             rmm::mr::device_memory_resource* mr) {
   CUDF_EXPECTS(is_fixed_width(type), "Unary cast-to type must be fixed-width.");
 
   auto size = input.size();
   auto null_mask = copy_bitmask(input, stream, mr);
-  auto output = std::make_unique<column>(type, size,
-                                         rmm::device_buffer{size * cudf::size_of(type), stream, mr},
-                                         null_mask, input.null_count(), std::vector<std::unique_ptr<column>>{});
+  auto output = std::make_unique<column>(
+      type, size, rmm::device_buffer{size * cudf::size_of(type), stream, mr},
+      null_mask, input.null_count(), std::vector<std::unique_ptr<column>>{});
 
-  auto launch_cast = detail::dispatch_unary_cast{*column_device_view::create(input), static_cast<mutable_column_view>(*output)};
+  auto launch_cast =
+      detail::dispatch_unary_cast{*column_device_view::create(input),
+                                  static_cast<mutable_column_view>(*output)};
 
   experimental::type_dispatcher(input.type(), launch_cast, stream);
 
   return output;
 }
 
-} // experimental
-} // cudf
+}  // namespace experimental
+}  // namespace cudf
