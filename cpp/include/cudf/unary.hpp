@@ -16,9 +16,9 @@
 
 #pragma once 
 
-#include <cudf/cudf.h>
+#include <memory>
 #include <cudf/types.hpp>
-#include <rmm/thrust_rmm_allocator.h>
+#include <rmm/mr/default_memory_resource.hpp>
 
 namespace cudf {
 namespace experimental {
@@ -45,18 +45,14 @@ std::unique_ptr<cudf::column> is_valid(cudf::column_view const& input);
 
 /**
  * @brief  Casts data from dtype specified in input to dtype specified in output
- * 
- * @note In case of conversion from GDF_DATE32/GDF_DATE64/GDF_TIMESTAMP to
- *  GDF_TIMESTAMP, the time unit for output should be set in out_info.time_unit
  *
  * @param column_view Input column
  * @param out_type Desired datatype of output column
- * @param out_info Extra info for output column in case of conversion to types
- *  that require extra info
  *
  * @returns unique_ptr<column> Result of the cast operation
+ * @throw cudf::logic_error if `out_type` is not a fixed-width type
  */
-std::unique_ptr<column> cast(column_view const& input, data_type out_type, cudaStream_t stream = 0,
+std::unique_ptr<column> cast(column_view const& input, data_type out_type,
                              rmm::mr::device_memory_resource* mr = rmm::mr::get_default_resource());
 
 } // namespace experimental
