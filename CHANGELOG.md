@@ -122,6 +122,7 @@
 - PR #3371 Add `select` method to `table_view`
 - PR #3309 Add java and JNI bindings for search bounds
 - PR #3382 Add fill function for strings column
+- PR #3201 Define and implement new datetime_ops APIs
 
 ## Bug Fixes
 

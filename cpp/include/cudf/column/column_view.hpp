@@ -373,7 +373,7 @@ class mutable_column_view : public detail::column_view_base {
    * column, and instead, accessing the elements should be done via `data<T>()`.
    *
    * @tparam The type to cast to
-   * @return T const* Typed pointer to underlying data
+   * @return T* Typed pointer to underlying data
    *---------------------------------------------------------------------------**/
   template <typename T = void>
   T* head() const noexcept {
