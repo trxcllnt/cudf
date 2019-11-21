@@ -31,6 +31,7 @@
 #include <cudf/datetime.hpp> // replace eventually
 
 #include <types.hpp.jit>
+#include <timestamps.hpp.jit>
 
 namespace cudf {
 namespace experimental {
@@ -41,9 +42,24 @@ namespace jit {
 
   const std::string hash = "prog_binop.experimental";
 
-  const std::vector<std::string> compiler_flags { "-std=c++14" };
+  const std::vector<std::string> compiler_flags { "-std=c++14",
+                                                  "-D __ELF__",
+                                                  "-D__LP64__",
+                                                  "-D__x86_64__",
+                                                  "-D__CUDACC_RTC__",
+                                                  "-D_LIBCPP_HAS_THREAD_API_EXTERNAL",
+                                                  "-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER",
+                                                  "-D_LIBCPP_HAS_NO_PRAGMA_PUSH_POP_MACRO",
+                                                  "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
+                                                  "-I/usr/include",
+                                                  "-I/usr/include/c++/7",
+                                                  "-I/usr/include/x86_64-linux-gnu",
+                                                  "-I/usr/local/cuda-10.1/targets/x86_64-linux/include",
+                                                  "-I/home/ptaylor/dev/rapids/cudf/thirdparty/libcudacxx/include",
+                                                  "-I/home/ptaylor/dev/rapids/cudf/thirdparty/libcudacxx/libcxx/include"
+                                                };
   const std::vector<std::string> headers_name
-        { "operation.h" , "traits.h", cudf_types_hpp };
+        { "operation.h" , "traits.h", cudf_types_hpp, cudf_wrappers_timestamps_hpp };
   
   std::istream* headers_code(std::string filename, std::iostream& stream) {
       if (filename == "operation.h") {
@@ -241,8 +257,8 @@ std::unique_ptr<column> binary_operation( column_view const& lhs,
                                           cudaStream_t stream)
 {
   // Check for datatype
-  CUDF_EXPECTS(is_numeric(lhs.type()), "Invalid/Unsupported lhs datatype");
-  CUDF_EXPECTS(is_numeric(rhs.type()), "Invalid/Unsupported rhs datatype");
+  CUDF_EXPECTS(is_numeric(lhs.type()) || is_timestamp(lhs.type()), "Invalid/Unsupported lhs datatype");
+  CUDF_EXPECTS(is_numeric(rhs.type()) || is_timestamp(rhs.type()), "Invalid/Unsupported rhs datatype");
   CUDF_EXPECTS(is_numeric(output_type), "Invalid/Unsupported output datatype");
 
   CUDF_EXPECTS((lhs.size() == rhs.size()), "Column sizes don't match");
@@ -269,7 +285,7 @@ std::unique_ptr<column> binary_operation( column_view const& lhs,
 {
   // Check for datatype
   auto is_type_supported_ptx = [] (data_type type) -> bool {
-    return is_numeric(type) and 
+    return (is_numeric(type) or is_timestamp(type)) and 
            type.id() != type_id::INT8; // Numba PTX doesn't support int8
   };
   CUDF_EXPECTS(is_type_supported_ptx(lhs.type()), "Invalid/Unsupported lhs datatype");

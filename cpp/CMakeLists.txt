@@ -236,6 +236,8 @@ if(JITIFY_USE_CACHE)
     add_definitions("-DJITIFY_USE_CACHE -DCUDF_VERSION=${CMAKE_PROJECT_VERSION}")
 endif(JITIFY_USE_CACHE)
 
+add_definitions("-DJITIFY_PRINT_ALL=1")
+
 ###################################################################################################
 # - add gtest -------------------------------------------------------------------------------------
 
