@@ -394,6 +394,14 @@ ConfigureTest(LEGACY_CSV_TEST "${LEGACY_CSV_TEST_SRC}")
 ConfigureTest(LEGACY_JSON_TEST "${LEGACY_JSON_TEST_SRC}")
 ConfigureTest(LEGACY_ORC_TEST "${LEGACY_ORC_TEST_SRC}")
 
+set(CSV_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/io/csv_test.cu")
+set(ORC_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/io/orc_test.cu")
+
+ConfigureTest(CSV_TEST "${CSV_TEST_SRC}")
+ConfigureTest(ORC_TEST "${ORC_TEST_SRC}")
+
 ###################################################################################################
 # - sort tests ------------------------------------------------------------------------------------
 
@@ -439,11 +447,12 @@ ConfigureTest(LEGACY_DLPACK_TEST "${LEGACY_DLPACK_TEST_SRC}")
 # - copying tests ---------------------------------------------------------------------------------
 
 set(COPYING_TEST_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/copying/utility_tests.cu"
-  "${CMAKE_CURRENT_SOURCE_DIR}/copying/gather_tests.cu"
-  "${CMAKE_CURRENT_SOURCE_DIR}/copying/slice_tests.cu"
-  "${CMAKE_CURRENT_SOURCE_DIR}/copying/split_tests.cu"
-  "${CMAKE_CURRENT_SOURCE_DIR}/copying/copy_tests.cu")
+    "${CMAKE_CURRENT_SOURCE_DIR}/copying/utility_tests.cu"
+    "${CMAKE_CURRENT_SOURCE_DIR}/copying/gather_tests.cu"
+    "${CMAKE_CURRENT_SOURCE_DIR}/copying/copy_range_tests.cu"
+    "${CMAKE_CURRENT_SOURCE_DIR}/copying/slice_tests.cu"
+    "${CMAKE_CURRENT_SOURCE_DIR}/copying/split_tests.cu"
+    "${CMAKE_CURRENT_SOURCE_DIR}/copying/copy_tests.cu")
 
 ConfigureTest(COPYING_TEST "${COPYING_TEST_SRC}")
 
@@ -595,6 +604,15 @@ set(LEGACY_ROLLING_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/rolling/legacy/rolling_test.cu")
 
 ConfigureTest(LEGACY_ROLLING_TEST "${LEGACY_ROLLING_TEST_SRC}")
+
+###################################################################################################
+# - filling test ----------------------------------------------------------------------------------
+
+set(FILLING_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/filling/fill_tests.cu"
+    "${CMAKE_CURRENT_SOURCE_DIR}/filling/repeat_tests.cu")
+
+ConfigureTest(FILLING_TEST "${FILLING_TEST_SRC}")
 
 ###################################################################################################
 # - legacy filling test ---------------------------------------------------------------------------
