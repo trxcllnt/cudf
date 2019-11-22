@@ -72,7 +72,7 @@ enum class  mask_allocation_policy {
  * @param[in] input Immutable view of input column to emulate
  * @return std::unique_ptr<column> An empty column of same type as `input`
  */
-std::unique_ptr<column> empty_like(column_view input);
+std::unique_ptr<column> empty_like(column_view const& input);
 
 /**
  * @brief Creates an uninitialized new column of the same size and type as the `input`.
@@ -83,7 +83,7 @@ std::unique_ptr<column> empty_like(column_view input);
  * @param[in] mr Optional, The resource to use for all allocations
  * @return std::unique_ptr<column> A column with sufficient uninitialized capacity to hold the same number of elements as `input` of the same type as `input.type()`
  */
-std::unique_ptr<column> allocate_like(column_view input,
+std::unique_ptr<column> allocate_like(column_view const& input,
                                       mask_allocation_policy mask_alloc = mask_allocation_policy::RETAIN,
                                       rmm::mr::device_memory_resource *mr =
                                           rmm::mr::get_default_resource());
@@ -98,7 +98,7 @@ std::unique_ptr<column> allocate_like(column_view input,
  * @param[in] mr Optional, The resource to use for all allocations
  * @return std::unique_ptr<column> A column with sufficient uninitialized capacity to hold the specified number of elements as `input` of the same type as `input.type()`
  */
-std::unique_ptr<column> allocate_like(column_view input, size_type size,
+std::unique_ptr<column> allocate_like(column_view const& input, size_type size,
                                       mask_allocation_policy mask_alloc = mask_allocation_policy::RETAIN,
                                       rmm::mr::device_memory_resource *mr =
                                           rmm::mr::get_default_resource());
@@ -112,7 +112,7 @@ std::unique_ptr<column> allocate_like(column_view input, size_type size,
  * @param[in] input_table Immutable view of input table to emulate
  * @return std::unique_ptr<table> A table of empty columns with the same types as the columns in `input_table`
  */
-std::unique_ptr<table> empty_like(table_view input_table);
+std::unique_ptr<table> empty_like(table_view const& input_table);
 
 /**
  * @brief Slices a `column_view` into a set of `column_view`s according to a set of indices.
@@ -173,5 +173,27 @@ std::vector<column_view> slice(column_view const& input,
 std::vector<column_view> split(column_view const& input,
                                std::vector<size_type> const& splits);
 
+/**
+ * @brief   Returns a new column, where each element is selected from either @p lhs or 
+ *          @p rhs based on the value of the corresponding element in @p boolean_mask
+ *
+ * Selects each element i in the output column from either @p rhs or @p lhs using the following rule:
+ *          output[i] = (boolean_mask[i]) ? lhs[i] : rhs[i]
+ *          
+ * @throws cudf::logic_error if lhs and rhs are not of the same type
+ * @throws cudf::logic_error if lhs and rhs are not of the same length 
+ * @throws cudf::logic_error if boolean_mask contains nulls
+ * @throws cudf::logic_error if boolean mask is not of type bool8
+ * @throws cudf::logic_error if boolean mask is not of the same length as lhs and rhs  
+ * @param[in] left-hand column_view
+ * @param[in] right-hand column_view
+ * @param[in] Non-nullable column of `BOOL8` elements that control selection from `lhs` or `rhs`
+ * @param[in] mr resource for allocating device memory
+ *
+ * @returns new column with the selected elements
+ */
+std::unique_ptr<column> copy_if_else(column_view const& lhs, column_view const& rhs, column_view const& boolean_mask,
+                                    rmm::mr::device_memory_resource *mr = rmm::mr::get_default_resource());
+                                 
 }  // namespace experimental
 }  // namespace cudf
