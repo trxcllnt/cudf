@@ -78,6 +78,25 @@ std::unique_ptr<column> empty_like(column_view const& input) {
 }
 
 /*
+ * Creates an uninitialized new column of the specified `size` and `type`
+ * Supports only fixed-width types.
+ */
+std::unique_ptr<column> allocate_like(data_type type, 
+                                      size_type size, 
+                                      mask_state state,
+                                      rmm::mr::device_memory_resource *mr,
+                                      cudaStream_t stream)
+{
+  CUDF_EXPECTS(is_fixed_width(type), "Expects only fixed-width type column");
+
+  return std::make_unique<column>(type,
+                                  size,
+                                  rmm::device_buffer(size*size_of(type), stream, mr),
+                                  create_null_mask(size, state, stream, mr),
+                                  state_null_count(state, size));
+}
+
+/*
  * Creates a table of empty columns with the same types as the `input_table`
  */
 std::unique_ptr<table> empty_like(table_view const& input_table) {
@@ -99,5 +118,16 @@ std::unique_ptr<column> allocate_like(column_view const& input, size_type size,
   return detail::allocate_like(input, size, mask_alloc, mr);
 }
 
-}  // namespace experimental
-}  // namespace cudf
+std::unique_ptr<column> allocate_like(data_type type, 
+                                      size_type size, 
+                                      mask_state state,
+                                      rmm::mr::device_memory_resource *mr) {
+  return detail::allocate_like(type, size, state, mr);
+}
+
+std::unique_ptr<table> empty_like(table_view const& input_table) {
+  return detail::empty_like(input_table);
+}
+
+} // namespace experimental
+} // namespace cudf
