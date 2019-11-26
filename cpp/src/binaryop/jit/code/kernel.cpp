@@ -26,6 +26,9 @@ namespace code {
 
 const char* kernel =
 R"***(
+    #define _LIBCUDACXX_USE_CXX20_CHRONO
+    #define _LIBCUDACXX_USE_CXX17_TYPE_TRAITS
+    #include <simt/chrono>
     #include <cudf/types.hpp>
     #include <cudf/wrappers/timestamps.hpp>
     #include "operation.h"
