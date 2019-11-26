@@ -43,22 +43,15 @@ namespace jit {
   const std::string hash = "prog_binop.experimental";
 
   const std::vector<std::string> compiler_flags { "-std=c++14",
-                                                  // "-D __ELF__",
-                                                  // "-D__LP64__",
-                                                  "-D__x86_64__",
-                                                  // "-D__CUDACC_RTC__",
-                                                  "-D_LIBCPP_STD_VER=14",
-                                                  // "-D_LIBCPP_HAS_THREAD_API_EXTERNAL",
-                                                  // "-D_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER",
-                                                  "-D_LIBCPP_HAS_NO_PRAGMA_PUSH_POP_MACRO",
+                                                  "-D _JITIFY_BINARY_OPS",
+                                                  "-D _LIBCUDACXX_HAS_NO_CTIME",
+                                                  "-D _LIBCUDACXX_HAS_NO_WCHAR",
+                                                  "-D _LIBCUDACXX_HAS_NO_CFLOAT",
+                                                  "-D _LIBCUDACXX_HAS_NO_STDINT",
+                                                  "-D _LIBCUDACXX_HAS_NO_CSTDDEF",
+                                                  "-D _LIBCUDACXX_HAS_NO_CLIMITS",
                                                   "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
-                                                  "-I/usr/include",
-                                                  "-I/usr/include/c++/7",
-                                                  "-I/usr/include/c++/7/tr1",
-                                                  "-I/usr/include/x86_64-linux-gnu",
-                                                  "-I/usr/local/cuda-10.1/targets/x86_64-linux/include",
                                                   "-I/home/ptaylor/dev/rapids/cudf/thirdparty/libcudacxx/include",
-                                                  "-I/home/ptaylor/dev/rapids/cudf/thirdparty/libcudacxx/libcxx/include"
                                                 };
   const std::vector<std::string> headers_name
         { "operation.h" , "traits.h", cudf_types_hpp, cudf_wrappers_timestamps_hpp };
