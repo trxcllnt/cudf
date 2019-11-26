@@ -140,7 +140,7 @@ set(ERROR_TEST_SRC
 ConfigureTest(ERROR_TEST "${ERROR_TEST_SRC}")
 
 ###################################################################################################
-# - groupby tests ---------------------------------------------------------------------------------
+# - legacy groupby tests ---------------------------------------------------------------------------------
 
 set(LEGACY_HASH_GROUPBY_TEST_SRC 
     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/legacy/single_column_count.cu"
@@ -174,6 +174,43 @@ set(LEGACY_GROUPBY_WO_AGG_TEST_SRC
     )
 
 ConfigureTest(LEGACY_GROUPBY_WO_AGG_TEST "${LEGACY_GROUPBY_WO_AGG_TEST_SRC}")
+
+###################################################################################################
+# - groupby tests ---------------------------------------------------------------------------------
+
+set(HASH_GROUPBY_TEST_SRC 
+    # "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/single_column_count.cpp"
+    # "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/single_column_sum.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/single_column_avg.cpp"
+    # "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/single_column_max.cpp"
+    # "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/single_column_min.cpp"
+    # "${CMAKE_CURRENT_SOURCE_DIR}/groupby/hash/single_column_multi_agg.cpp"
+    )
+
+ConfigureTest(HASH_GROUPBY_TEST "${HASH_GROUPBY_TEST_SRC}")
+
+# set(SORT_GROUPBY_TEST_SRC 
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/ignore_null_keys/single_column_avg.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/ignore_null_keys/single_column_sum.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/ignore_null_keys/single_column_count.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/ignore_null_keys/single_column_min.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/ignore_null_keys/single_column_max.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/ignore_null_keys/single_column_quantile.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/ignore_null_keys/single_column_median.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/ignore_null_keys/single_column_multi_agg.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/ignore_null_keys/single_column_var_std.cpp"
+
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/sort/not_ignore_null_keys/single_column_sum.cpp"
+# )
+
+# ConfigureTest(SORT_GROUPBY_TEST "${SORT_GROUPBY_TEST_SRC}")
+
+# set(GROUPBY_WO_AGG_TEST_SRC 
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/without_agg/groupby_wo_agg_test.cpp"
+#     "${CMAKE_CURRENT_SOURCE_DIR}/groupby/without_agg/single_column_groupby.cpp"
+#     )
+
+# ConfigureTest(GROUPBY_WO_AGG_TEST "${GROUPBY_WO_AGG_TEST_SRC}")
 
 ###################################################################################################
 # - join tests ------------------------------------------------------------------------------------
