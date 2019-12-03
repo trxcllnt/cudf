@@ -43,13 +43,14 @@ namespace jit {
   const std::string hash = "prog_binop.experimental";
 
   const std::vector<std::string> compiler_flags { "-std=c++14",
-                                                  "-D _JITIFY_BINARY_OPS",
-                                                  "-D _LIBCUDACXX_HAS_NO_CTIME",
-                                                  "-D _LIBCUDACXX_HAS_NO_WCHAR",
-                                                  "-D _LIBCUDACXX_HAS_NO_CFLOAT",
-                                                  "-D _LIBCUDACXX_HAS_NO_STDINT",
-                                                  "-D _LIBCUDACXX_HAS_NO_CSTDDEF",
-                                                  "-D _LIBCUDACXX_HAS_NO_CLIMITS",
+                                                  "-D__CUDACC_RTC__",
+                                                  "-D__CHAR_BIT__=" + std::to_string(__CHAR_BIT__),
+                                                  "-D_LIBCUDACXX_HAS_NO_CTIME",
+                                                  "-D_LIBCUDACXX_HAS_NO_WCHAR",
+                                                  "-D_LIBCUDACXX_HAS_NO_CFLOAT",
+                                                  "-D_LIBCUDACXX_HAS_NO_STDINT",
+                                                  "-D_LIBCUDACXX_HAS_NO_CSTDDEF",
+                                                  "-D_LIBCUDACXX_HAS_NO_CLIMITS",
                                                   "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
                                                   "-I/home/ptaylor/dev/rapids/cudf/thirdparty/libcudacxx/include",
                                                 };
@@ -77,7 +78,7 @@ void binary_operation(mutable_column_view& out,
   cudf::jit::launcher(
     hash, code::kernel, headers_name, compiler_flags, headers_code, stream
   ).set_kernel_inst(
-    "kernel_v_s", // name of the kernel we are launching
+    "cudf::experimental::kernel_v_s", // name of the kernel we are launching
     { cudf::jit::get_type_name(out.type()), // list of template arguments
       cudf::jit::get_type_name(rhs.type()),
       cudf::jit::get_type_name(lhs.type()),
@@ -100,7 +101,7 @@ void binary_operation(mutable_column_view& out,
   cudf::jit::launcher(
     hash, code::kernel, headers_name, compiler_flags, headers_code, stream
   ).set_kernel_inst(
-    "kernel_v_s", // name of the kernel we are launching
+    "cudf::experimental::kernel_v_s", // name of the kernel we are launching
     { cudf::jit::get_type_name(out.type()), // list of template arguments
       cudf::jit::get_type_name(lhs.type()),
       cudf::jit::get_type_name(rhs.type()),
@@ -123,7 +124,7 @@ void binary_operation(mutable_column_view& out,
   cudf::jit::launcher(
     hash, code::kernel, headers_name, compiler_flags, headers_code, stream
   ).set_kernel_inst(
-    "kernel_v_v", // name of the kernel we are launching
+    "cudf::experimental::kernel_v_v", // name of the kernel we are launching
     { cudf::jit::get_type_name(out.type()), // list of template arguments
       cudf::jit::get_type_name(lhs.type()),
       cudf::jit::get_type_name(rhs.type()),
@@ -155,7 +156,7 @@ void binary_operation(mutable_column_view& out,
   cudf::jit::launcher(
     ptx_hash, cuda_source, headers_name, compiler_flags, headers_code, stream
   ).set_kernel_inst(
-    "kernel_v_v", // name of the kernel we are launching
+    "cudf::experimental::kernel_v_v", // name of the kernel we are launching
     { output_type_name,                     // list of template arguments
       cudf::jit::get_type_name(lhs.type()),
       cudf::jit::get_type_name(rhs.type()),

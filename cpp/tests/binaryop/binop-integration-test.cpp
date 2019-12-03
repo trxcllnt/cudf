@@ -345,7 +345,7 @@ TEST_F(BinaryOperationIntegrationTest, Less_Vector_Vector_B8_TSS_TSS) {
     auto lhs = make_random_wrapped_column<TypeLhs>(10);
     auto rhs = make_random_wrapped_column<TypeRhs>(10);
     auto out = cudf::experimental::binary_operation(lhs, rhs, 
-                    cudf::experimental::binary_operator::SUB,
+                    cudf::experimental::binary_operator::LESS,
                     data_type(experimental::type_to_id<TypeOut>()));
 
     ASSERT_BINOP<TypeOut, TypeLhs, TypeRhs>(*out, lhs, rhs, LESS());
