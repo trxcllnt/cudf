@@ -43,6 +43,11 @@ namespace jit {
   const std::string hash = "prog_binop.experimental";
 
   const std::vector<std::string> compiler_flags { "-std=c++14",
+                                                  "-w", // suppress all NVRTC warnings
+                                                  // or we can do this to show warning numbers
+                                                  // "-Xcudafe", "--display_error_number",
+                                                  // and this to silence warnings individually
+                                                  // "-Xcudafe", "--diag_suppress=2945",
                                                   "-D__CUDACC_RTC__",
                                                   "-D__CHAR_BIT__=" + std::to_string(__CHAR_BIT__),
                                                   "-D_LIBCUDACXX_HAS_NO_CTIME",
