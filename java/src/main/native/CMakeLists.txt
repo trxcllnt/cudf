@@ -121,6 +121,10 @@ find_path(LIBCUDACXX_INCLUDE "simt"
     HINTS "$ENV{CUDF_ROOT}/_deps/libcudacxx-src/include"
           "${PROJECT_SOURCE_DIR}/../../../../cpp/build/_deps/libcudacxx-src/include")
 
+find_path(SPDLOG_INCLUDE "spdlog"
+    HINTS "$ENV{RMM_ROOT}/_deps/spdlog-src/include"
+          "$ENV{CONDA_PREFIX}/include")
+
 ###################################################################################################
 # - CUDF ------------------------------------------------------------------------------------------
 
@@ -128,7 +132,8 @@ set(CUDF_INCLUDE "${PROJECT_SOURCE_DIR}/../../../../cpp/include"
                  "${PROJECT_SOURCE_DIR}/../../../../cpp/src/")
 
 find_library(CUDF_LIBRARY "cudf"
-    HINTS "$ENV{CUDF_ROOT}/lib"
+    HINTS "$ENV{CUDF_ROOT}"
+          "$ENV{CUDF_ROOT}/lib"
           "$ENV{CONDA_PREFIX}/lib"
           "../../../../cpp/build")
 
@@ -145,12 +150,14 @@ endif (CUDF_INCLUDE AND CUDF_LIBRARY)
 # - RMM -------------------------------------------------------------------------------------------
 
 find_path(RMM_INCLUDE "rmm"
-          HINTS "$ENV{RMM_ROOT}/include"
+          HINTS "$ENV{RMM_HOME}/include"
+                "$ENV{RMM_ROOT}/include"
                 "$ENV{CONDA_PREFIX}/include/rmm"
                 "$ENV{CONDA_PREFIX}/include")
 
 find_library(RMM_LIBRARY "rmm"
-             HINTS "$ENV{RMM_ROOT}/lib"
+             HINTS "$ENV{RMM_ROOT}"
+                   "$ENV{RMM_ROOT}/lib"
                    "$ENV{CONDA_PREFIX}/lib")
 
 message(STATUS "RMM: RMM_LIBRARY set to ${RMM_LIBRARY}")
@@ -176,6 +183,7 @@ endif(JNI_FOUND)
 include_directories("${THRUST_INCLUDE}"
                     "${CUB_INCLUDE}"
                     "${LIBCUDACXX_INCLUDE}"
+                    "${SPDLOG_INCLUDE}"
                     "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                     "${CMAKE_BINARY_DIR}/include"
                     "${CMAKE_SOURCE_DIR}/include"
@@ -231,5 +239,3 @@ endif(PER_THREAD_DEFAULT_STREAM)
 # - link libraries --------------------------------------------------------------------------------
 
 target_link_libraries(cudfjni cudf rmm ${CUDART_LIBRARY} cuda nvrtc)
-
-
