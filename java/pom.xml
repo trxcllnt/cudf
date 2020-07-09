@@ -146,6 +146,7 @@
         <cxx.flags/>
         <CUDA_STATIC_RUNTIME>OFF</CUDA_STATIC_RUNTIME>
         <PER_THREAD_DEFAULT_STREAM>OFF</PER_THREAD_DEFAULT_STREAM>
+        <CMAKE_EXPORT_COMPILE_COMMANDS>OFF</CMAKE_EXPORT_COMPILE_COMMANDS>
     </properties>
 
     <profiles>
@@ -342,6 +343,7 @@
                                     <arg value="${basedir}/src/main/native"/>
                                     <arg value="-DCUDA_STATIC_RUNTIME=${CUDA_STATIC_RUNTIME}" />
                                     <arg value="-DPER_THREAD_DEFAULT_STREAM=${PER_THREAD_DEFAULT_STREAM}" />
+                                    <arg value="-DCMAKE_EXPORT_COMPILE_COMMANDS=${CMAKE_EXPORT_COMPILE_COMMANDS}" />
                                     <arg value="-DCMAKE_CXX11_ABI=${cxx11.abi.value}"/>
                                     <arg value="-DCMAKE_CXX_FLAGS=${cxx.flags}"/>
                                 </exec>
