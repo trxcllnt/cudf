@@ -14,63 +14,75 @@
 # limitations under the License.
 #=============================================================================
 
-add_library(cudf_datagen STATIC
-                   "${CMAKE_SOURCE_DIR}/benchmarks/common/generate_benchmark_input.cpp"
+# Find or install GoogleTest
+CPMFindPackage(NAME GTest
+    VERSION         1.10.0
+    GIT_REPOSITORY  https://github.com/google/googletest.git
+    GIT_TAG         release-1.10.0
+    GIT_SHALLOW     TRUE
+    OPTIONS         "INSTALL_GTEST OFF"
+    # googletest >= 1.10.0 provides a cmake config file -- use it if it exists
+    FIND_PACKAGE_ARGUMENTS "CONFIG")
+
+if(GTest_ADDED)
+    add_library(GTest::gtest ALIAS gtest)
+    add_library(GTest::gmock ALIAS gmock)
+    add_library(GTest::gtest_main ALIAS gtest_main)
+    add_library(GTest::gmock_main ALIAS gmock_main)
+endif()
+
+# Find or install GoogleBench
+CPMFindPackage(NAME benchmark
+    VERSION         1.5.2
+    GIT_REPOSITORY  https://github.com/google/benchmark.git
+    GIT_TAG         v1.5.2
+    GIT_SHALLOW     TRUE
+    OPTIONS         "BENCHMARK_ENABLE_TESTING OFF"
+                    "BENCHMARK_ENABLE_INSTALL OFF")
+
+add_library(cudf_datagen STATIC "${CUDF_SOURCE_DIR}/benchmarks/common/generate_benchmark_input.cpp")
+
+target_compile_options(cudf_datagen
+            PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${CUDF_CXX_FLAGS}>"
+                    "$<$<COMPILE_LANGUAGE:CUDA>:${CUDF_CUDA_FLAGS}>"
 )
+
+target_link_libraries(cudf_datagen
+               PUBLIC GTest::gmock
+                      GTest::gtest
+                      GTest::gmock_main
+                      GTest::gtest_main
+                      benchmark::benchmark
+                      benchmark::benchmark_main
+                      pthread
+                      cudf)
+
+target_include_directories(cudf_datagen
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
+           "$<BUILD_INTERFACE:${CUDF_SOURCE_DIR}>"
+           "$<BUILD_INTERFACE:${CUDF_SOURCE_DIR}/src>")
 
 ###################################################################################################
 # - compiler function -----------------------------------------------------------------------------
-
-set(BENCHMARK_LIST CACHE INTERNAL "BENCHMARK_LIST")
 
 function(ConfigureBench CMAKE_BENCH_NAME CMAKE_BENCH_SRC)
     add_executable(${CMAKE_BENCH_NAME}
                    ${CMAKE_BENCH_SRC}
                    "${CMAKE_CURRENT_SOURCE_DIR}/synchronization/synchronization.cpp"
-                   "${CMAKE_SOURCE_DIR}/tests/utilities/base_fixture.cpp"
-                   "${CMAKE_SOURCE_DIR}/benchmarks/io/cuio_benchmark_common.cpp")
-    set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_link_libraries(${CMAKE_BENCH_NAME} benchmark benchmark_main pthread cudf_datagen cudf)
-    set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES
-                            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
-    set(BENCHMARK_LIST ${BENCHMARK_LIST} ${CMAKE_BENCH_NAME} CACHE INTERNAL "BENCHMARK_LIST")
+                   "${CUDF_SOURCE_DIR}/tests/utilities/base_fixture.cpp"
+                   "${CUDF_SOURCE_DIR}/benchmarks/io/cuio_benchmark_common.cpp")
+    target_compile_options(${CMAKE_BENCH_NAME}
+                PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${CUDF_CXX_FLAGS}>"
+                        "$<$<COMPILE_LANGUAGE:CUDA>:${CUDF_CUDA_FLAGS}>"
+    )
+    set_target_properties(${CMAKE_BENCH_NAME}
+        PROPERTIES CXX_STANDARD              14
+                   CXX_STANDARD_REQUIRED     ON
+                   CUDA_STANDARD             14
+                   CUDA_STANDARD_REQUIRED    ON
+                   RUNTIME_OUTPUT_DIRECTORY "$<BUILD_INTERFACE:${CUDF_BINARY_DIR}/gbenchmarks>")
+    target_link_libraries(${CMAKE_BENCH_NAME} cudf_datagen)
 endfunction(ConfigureBench)
-
-###################################################################################################
-# - include paths ---------------------------------------------------------------------------------
-
-include_directories("${THRUST_INCLUDE_DIR}"
-                    "${JITIFY_INCLUDE_DIR}"
-                    "${LIBCUDACXX_INCLUDE_DIR}")
-
-if(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES)
-    include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
-endif(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES)
-
-include_directories("${CMAKE_BINARY_DIR}/include"
-                    "${CMAKE_SOURCE_DIR}/include"
-                    "${CMAKE_SOURCE_DIR}"
-                    "${CMAKE_SOURCE_DIR}/src"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/dlpack/include"
-                    "${GTEST_INCLUDE_DIR}"
-                    "${GBENCH_INCLUDE_DIR}"
-                    "${ARROW_INCLUDE_DIR}"
-                    "${RMM_INCLUDE}"
-                    "${CMAKE_CURRENT_SOURCE_DIR}")
-
-if(CONDA_INCLUDE_DIRS)
-  include_directories("${CONDA_INCLUDE_DIRS}")
-endif(CONDA_INCLUDE_DIRS)
-
-###################################################################################################
-# - library paths ---------------------------------------------------------------------------------
-
-link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES is an undocumented/unsupported variable containing the link directories for nvcc
-                 "${CMAKE_BINARY_DIR}/lib"
-                 "${CMAKE_BINARY_DIR}"
-                 "${GTEST_LIBRARY_DIR}"
-                 "${GBENCH_LIBRARY_DIR}"
-                 "${RMM_LIBRARY}")
 
 ###################################################################################################
 # - column benchmarks -----------------------------------------------------------------------------

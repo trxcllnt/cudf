@@ -14,24 +14,25 @@
 # limitations under the License.
 #=============================================================================
 
-if(NOT CMAKE_CUDA_COMPILER)
-  message(SEND_ERROR "CMake cannot locate a CUDA compiler")
+# Find or install CTest
+include(CTest)
+
+# Find or install GoogleTest
+CPMFindPackage(NAME GTest
+    VERSION         1.10.0
+    GIT_REPOSITORY  https://github.com/google/googletest.git
+    GIT_TAG         release-1.10.0
+    GIT_SHALLOW     TRUE
+    OPTIONS         "INSTALL_GTEST OFF"
+    # googletest >= 1.10.0 provides a cmake config file -- use it if it exists
+    FIND_PACKAGE_ARGUMENTS "CONFIG")
+
+if(GTest_ADDED)
+    add_library(GTest::gtest ALIAS gtest)
+    add_library(GTest::gmock ALIAS gmock)
+    add_library(GTest::gtest_main ALIAS gtest_main)
+    add_library(GTest::gmock_main ALIAS gmock_main)
 endif()
-
-###################################################################################################
-# - conda environment -----------------------------------------------------------------------------
-
-if("$ENV{CONDA_BUILD}" STREQUAL "1")
-    set(CMAKE_SYSTEM_PREFIX_PATH "$ENV{BUILD_PREFIX};$ENV{PREFIX};${CMAKE_SYSTEM_PREFIX_PATH}")
-    set(CONDA_INCLUDE_DIRS "$ENV{BUILD_PREFIX}/include" "$ENV{PREFIX}/include")
-    set(CONDA_LINK_DIRS "$ENV{BUILD_PREFIX}/lib" "$ENV{PREFIX}/lib")
-    message(STATUS "Conda build detected, CMAKE_SYSTEM_PREFIX_PATH set to: ${CMAKE_SYSTEM_PREFIX_PATH}")
-elseif(DEFINED ENV{CONDA_PREFIX})
-    set(CMAKE_SYSTEM_PREFIX_PATH "$ENV{CONDA_PREFIX};${CMAKE_SYSTEM_PREFIX_PATH}")
-    set(CONDA_INCLUDE_DIRS "$ENV{CONDA_PREFIX}/include")
-    set(CONDA_LINK_DIRS "$ENV{CONDA_PREFIX}/lib")
-    message(STATUS "Conda environment detected, CMAKE_SYSTEM_PREFIX_PATH set to: ${CMAKE_SYSTEM_PREFIX_PATH}")
-endif("$ENV{CONDA_BUILD}" STREQUAL "1")
 
 ###################################################################################################
 # - common test utils -----------------------------------------------------------------------------
@@ -42,9 +43,29 @@ add_library(cudftestutil STATIC
             "${CMAKE_CURRENT_SOURCE_DIR}/utilities/table_utilities.cu"
             "${CMAKE_CURRENT_SOURCE_DIR}/strings/utilities.cu")
 
-set_property(TARGET cudftestutil PROPERTY POSITION_INDEPENDENT_CODE ON)
+target_compile_options(cudftestutil
+            PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${CUDF_CXX_FLAGS}>"
+                    "$<$<COMPILE_LANGUAGE:CUDA>:${CUDF_CUDA_FLAGS}>"
+)
 
-target_link_libraries(cudftestutil cudf)
+set_target_properties(cudftestutil
+    PROPERTIES CXX_STANDARD              14
+               CXX_STANDARD_REQUIRED     ON
+               CUDA_STANDARD             14
+               CUDA_STANDARD_REQUIRED    ON
+)
+
+target_link_libraries(cudftestutil
+               PUBLIC GTest::gmock
+                      GTest::gtest
+                      GTest::gmock_main
+                      GTest::gtest_main
+                      pthread
+                      cudf)
+
+target_include_directories(cudftestutil
+    PUBLIC "$<BUILD_INTERFACE:${CUDF_SOURCE_DIR}>"
+           "$<BUILD_INTERFACE:${CUDF_SOURCE_DIR}/src>")
 
 install(TARGETS cudftestutil
         DESTINATION lib
@@ -53,53 +74,21 @@ install(TARGETS cudftestutil
 ###################################################################################################
 # - compiler function -----------------------------------------------------------------------------
 
-set(CUDF_TEST_LIST CACHE INTERNAL "CUDF_TEST_LIST")
-
 function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
-    add_executable(${CMAKE_TEST_NAME}
-                    ${CMAKE_TEST_SRC})
-    set_target_properties(${CMAKE_TEST_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_link_libraries(${CMAKE_TEST_NAME} gmock gtest pthread cudf cudftestutil)
-    set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
-                            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gtests")
+    add_executable(${CMAKE_TEST_NAME} ${CMAKE_TEST_SRC})
+    target_compile_options(${CMAKE_TEST_NAME}
+                PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:${CUDF_CXX_FLAGS}>"
+                        "$<$<COMPILE_LANGUAGE:CUDA>:${CUDF_CUDA_FLAGS}>"
+    )
+    set_target_properties(${CMAKE_TEST_NAME}
+        PROPERTIES CXX_STANDARD              14
+                   CXX_STANDARD_REQUIRED     ON
+                   CUDA_STANDARD             14
+                   CUDA_STANDARD_REQUIRED    ON
+                   RUNTIME_OUTPUT_DIRECTORY "$<BUILD_INTERFACE:${CUDF_BINARY_DIR}/gtests>")
+    target_link_libraries(${CMAKE_TEST_NAME} PUBLIC cudftestutil)
     add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
-    set(CUDF_TEST_LIST ${CUDF_TEST_LIST} ${CMAKE_TEST_NAME} CACHE INTERNAL "CUDF_TEST_LIST")
 endfunction(ConfigureTest)
-
-###################################################################################################
-# - include paths ---------------------------------------------------------------------------------
-
-include_directories("${THRUST_INCLUDE_DIR}"
-                    "${JITIFY_INCLUDE_DIR}"
-                    "${LIBCUDACXX_INCLUDE_DIR}")
-
-if(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES)
-    include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
-endif()
-
-include_directories("${CMAKE_BINARY_DIR}/include"
-                    "${CMAKE_SOURCE_DIR}/include"
-                    "${CMAKE_SOURCE_DIR}"
-                    "${CMAKE_SOURCE_DIR}/src"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/dlpack/include"
-                    "${GTEST_INCLUDE_DIR}"
-                    "${ARROW_INCLUDE_DIR}"
-                    "${ZLIB_INCLUDE_DIRS}"
-                    "${Boost_INCLUDE_DIRS}"
-                    "${RMM_INCLUDE}")
-
-###################################################################################################
-# - library paths ---------------------------------------------------------------------------------
-
-link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES is an undocumented/unsupported variable containing the link directories for nvcc
-                 "${CMAKE_BINARY_DIR}/lib"
-                 "${CMAKE_BINARY_DIR}"
-                 "${GTEST_LIBRARY_DIR}"
-                 "${RMM_LIBRARY}")
-
-if(CONDA_LINK_DIRS)
-    link_directories("${CONDA_LINK_DIRS}")
-endif(CONDA_LINK_DIRS)
 
 ###################################################################################################
 ### test sources ##################################################################################
@@ -325,13 +314,13 @@ ConfigureTest(INTEROP_TEST "${INTEROP_TEST_SRC}")
 # - jit cache tests -------------------------------------------------------------------------------
 
 set(JITCACHE_TEST_SRC
-    "${CMAKE_SOURCE_DIR}/src/jit/cache.cpp"
+    "${CUDF_SOURCE_DIR}/src/jit/cache.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/jit/jit-cache-test.cpp")
 
 ConfigureTest(JITCACHE_TEST "${JITCACHE_TEST_SRC}")
 
 set(JITCACHE_MULTI_TEST_SRC
-    "${CMAKE_SOURCE_DIR}/src/jit/cache.cpp"
+    "${CUDF_SOURCE_DIR}/src/jit/cache.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/jit/jit-cache-multiprocess-test.cpp")
 
 ConfigureTest(JITCACHE_MULTIPROC_TEST "${JITCACHE_MULTI_TEST_SRC}")

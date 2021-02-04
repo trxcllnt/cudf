@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2020, NVIDIA CORPORATION.
+# Copyright (c) 2020-2021, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,18 @@
 # limitations under the License.
 #=============================================================================
 
-project(cudf-GoogleTest)
+function(find_and_configure_thrust VERSION)
+    CPMAddPackage(NAME Thrust
+        VERSION         ${VERSION}
+        GIT_REPOSITORY  https://github.com/NVIDIA/thrust.git
+        GIT_TAG         ${VERSION}
+        GIT_SHALLOW     TRUE
+        PATCH_COMMAND   patch -p1 -N < ${CUDF_SOURCE_DIR}/cmake/thrust.patch || true)
 
-include(ExternalProject)
+    thrust_create_target(cudf::Thrust FROM_OPTIONS)
+    set(THRUST_LIBRARY "cudf::Thrust" PARENT_SCOPE)
+endfunction()
 
-ExternalProject_Add(GoogleTest
-                    GIT_REPOSITORY    https://github.com/google/googletest.git
-                    GIT_TAG           release-1.8.0
-                    GIT_SHALLOW       true
-                    SOURCE_DIR        "${GTEST_ROOT}/googletest"
-                    BINARY_DIR        "${GTEST_ROOT}/build"
-                    INSTALL_DIR       "${GTEST_ROOT}/install"
-                    CMAKE_ARGS        ${GTEST_CMAKE_ARGS} -DCMAKE_INSTALL_PREFIX=${GTEST_ROOT}/install)
+set(CUDF_MIN_VERSION_Thrust 1.10.0)
+
+find_and_configure_thrust(${CUDF_MIN_VERSION_Thrust})
