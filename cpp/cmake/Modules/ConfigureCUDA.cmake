@@ -18,8 +18,8 @@
 find_package(CUDAToolkit REQUIRED)
 
 message(STATUS "CUDF: CUDAToolkit_VERSION: ${CUDAToolkit_VERSION}")
-message(STATUS "CUDF: CUDAToolkit_VERSION_MAJOR: ${CUDAToolkit_VERSION_MAJOR}")
-message(STATUS "CUDF: CUDAToolkit_VERSION_MINOR: ${CUDAToolkit_VERSION_MINOR}")
+message(VERBOSE "CUDF: CUDAToolkit_VERSION_MAJOR: ${CUDAToolkit_VERSION_MAJOR}")
+message(VERBOSE "CUDF: CUDAToolkit_VERSION_MINOR: ${CUDAToolkit_VERSION_MINOR}")
 
 # Auto-detect available GPU compute architectures
 
@@ -31,7 +31,7 @@ enable_language(CUDA)
 
 if(NOT CMAKE_CUDA_COMPILER)
     message(SEND_ERROR "CUDF: CMake cannot locate a CUDA compiler")
-endif(NOT CMAKE_CUDA_COMPILER)
+endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX)
     list(APPEND CUDF_CXX_FLAGS -Wall -Werror -Wno-unknown-pragmas -Wno-error=deprecated-declarations)
@@ -39,7 +39,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
         # Suppress parentheses warning which causes gmock to fail
         list(APPEND CUDF_CUDA_FLAGS -Xcompiler=-Wno-parentheses)
     endif()
-endif(CMAKE_COMPILER_IS_GNUCXX)
+endif()
 
 list(APPEND CUDF_CUDA_FLAGS --expt-extended-lambda --expt-relaxed-constexpr)
 
@@ -59,6 +59,6 @@ endif()
 
 # Debug options
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-    message(STATUS "CUDF: Building with debugging flags")
+    message(VERBOSE "CUDF: Building with debugging flags")
     list(APPEND CUDF_CUDA_FLAGS -G -Xcompiler=-rdynamic)
 endif()
