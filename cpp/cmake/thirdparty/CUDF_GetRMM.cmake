@@ -30,8 +30,8 @@ function(find_and_configure_rmm VERSION)
 
     CPMFindPackage(NAME rmm
         VERSION         ${VERSION}
-        GIT_REPOSITORY  https://github.com/rapidsai/rmm.git
-        GIT_TAG         branch-${VERSION}
+        GIT_REPOSITORY  https://github.com/trxcllnt/rmm.git
+        GIT_TAG         combined-fixes
         GIT_SHALLOW     TRUE
         OPTIONS         "BUILD_TESTS OFF"
                         "BUILD_BENCHMARKS OFF"
