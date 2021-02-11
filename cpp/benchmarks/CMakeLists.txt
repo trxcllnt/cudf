@@ -14,31 +14,7 @@
 # limitations under the License.
 #=============================================================================
 
-# Find or install GoogleTest
-CPMFindPackage(NAME GTest
-    VERSION         1.10.0
-    GIT_REPOSITORY  https://github.com/google/googletest.git
-    GIT_TAG         release-1.10.0
-    GIT_SHALLOW     TRUE
-    OPTIONS         "INSTALL_GTEST OFF"
-    # googletest >= 1.10.0 provides a cmake config file -- use it if it exists
-    FIND_PACKAGE_ARGUMENTS "CONFIG")
-
-if(GTest_ADDED)
-    add_library(GTest::gtest ALIAS gtest)
-    add_library(GTest::gmock ALIAS gmock)
-    add_library(GTest::gtest_main ALIAS gtest_main)
-    add_library(GTest::gmock_main ALIAS gmock_main)
-endif()
-
-# Find or install GoogleBench
-CPMFindPackage(NAME benchmark
-    VERSION         1.5.2
-    GIT_REPOSITORY  https://github.com/google/benchmark.git
-    GIT_TAG         v1.5.2
-    GIT_SHALLOW     TRUE
-    OPTIONS         "BENCHMARK_ENABLE_TESTING OFF"
-                    "BENCHMARK_ENABLE_INSTALL OFF")
+find_package(Threads REQUIRED)
 
 add_library(cudf_datagen STATIC common/generate_benchmark_input.cpp)
 target_compile_features(cudf_datagen PUBLIC cxx_std_14 cuda_std_14)
@@ -54,7 +30,7 @@ target_link_libraries(cudf_datagen
                       GTest::gtest_main
                       benchmark::benchmark
                       benchmark::benchmark_main
-                      pthread
+                      Threads::Threads
                       cudf)
 
 target_include_directories(cudf_datagen
@@ -139,6 +115,7 @@ ConfigureBench(TYPE_DISPATCHER_BENCH type_dispatcher/type_dispatcher_benchmark.c
 # - reduction benchmark ---------------------------------------------------------------------------
 ConfigureBench(REDUCTION_BENCH
   reduction/anyall_benchmark.cpp
+  reduction/dictionary_benchmark.cpp
   reduction/reduce_benchmark.cpp
   reduction/minmax_benchmark.cpp)
 
@@ -201,5 +178,7 @@ ConfigureBench(BINARYOP_BENCH binaryop/binaryop_benchmark.cu)
 ConfigureBench(SUBWORD_TOKENIZER_BENCH text/subword_benchmark.cpp)
 
 ###################################################################################################
-# - convert to string benchmark -------------------------------------------------------------------
-ConfigureBench(DURATION_TO_STRING_BENCH string/convert_durations_benchmark.cpp)
+# - strings benchmark -------------------------------------------------------------------
+ConfigureBench(STRINGS_BENCH
+  string/case_benchmark.cpp
+  string/convert_durations_benchmark.cpp)

@@ -116,11 +116,33 @@ include(cmake/thirdparty/CUDF_GetLibcudacxx.cmake)
 # Stringify libcudf and libcudacxx headers used in JIT operations
 include(cmake/Modules/StringifyJITHeaders.cmake)
 
+if (CUDF_BUILD_TESTS OR CUDF_BUILD_BENCHMARKS)
+    # Find or install GoogleTest
+    CPMFindPackage(NAME GTest
+        VERSION         1.10.0
+        GIT_REPOSITORY  https://github.com/google/googletest.git
+        GIT_TAG         release-1.10.0
+        GIT_SHALLOW     TRUE
+        OPTIONS         "INSTALL_GTEST OFF"
+        # googletest >= 1.10.0 provides a cmake config file -- use it if it exists
+        FIND_PACKAGE_ARGUMENTS "CONFIG")
+    # Add GTest aliases if they don't already exist.
+    # Assumes if GTest::gtest doesn't exist, the others don't either.
+    # TODO: Is this always a valid assumption?
+    if(NOT TARGET GTest::gtest)
+        add_library(GTest::gtest ALIAS gtest)
+        add_library(GTest::gmock ALIAS gmock)
+        add_library(GTest::gtest_main ALIAS gtest_main)
+        add_library(GTest::gmock_main ALIAS gmock_main)
+    endif()
+endif()
+
 ###################################################################################################
 # - add tests -------------------------------------------------------------------------------------
 
 if(CUDF_BUILD_TESTS)
-    enable_testing()
+    # include CTest module -- automatically calls enable_testing()
+    include(CTest)
     add_subdirectory(tests)
 endif()
 
@@ -128,6 +150,14 @@ endif()
 # - add benchmarks --------------------------------------------------------------------------------
 
 if(CUDF_BUILD_BENCHMARKS)
+    # Find or install GoogleBench
+    CPMFindPackage(NAME benchmark
+        VERSION         1.5.2
+        GIT_REPOSITORY  https://github.com/google/benchmark.git
+        GIT_TAG         v1.5.2
+        GIT_SHALLOW     TRUE
+        OPTIONS         "BENCHMARK_ENABLE_TESTING OFF"
+                        "BENCHMARK_ENABLE_INSTALL OFF")
     add_subdirectory(benchmarks)
 endif()
 
@@ -158,6 +188,7 @@ add_library(cudf
     src/copying/copy_range.cu
     src/copying/gather.cu
     src/copying/get_element.cu
+    src/copying/pack.cpp
     src/copying/sample.cu
     src/copying/scatter.cu
     src/copying/shift.cu
@@ -253,6 +284,7 @@ add_library(cudf
     src/lists/extract.cu
     src/lists/lists_column_factories.cu
     src/lists/lists_column_view.cu
+    src/lists/segmented_sort.cu
     src/merge/merge.cu
     src/partitioning/partitioning.cu
     src/partitioning/round_robin.cu
@@ -290,6 +322,7 @@ add_library(cudf
     src/search/search.cu
     src/sort/is_sorted.cu
     src/sort/rank.cu
+    src/sort/segmented_sort.cu
     src/sort/sort_column.cu
     src/sort/sort.cu
     src/sort/stable_sort_column.cu
@@ -475,7 +508,7 @@ set(INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/cudf)
 set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME cudf)
 
 # install target for cudf_base and the proxy libcudf.so
-install(TARGETS cudf ${CUDF_PROXY_NAME}
+install(TARGETS cudf
         DESTINATION lib
         EXPORT cudf-targets)
 
@@ -491,14 +524,14 @@ install(DIRECTORY
 
 include(CMakePackageConfigHelpers)
 
-configure_package_config_file(cmake/cudf-config.cmake.in "${CUDF_BINARY_DIR}/cudf-config.cmake"
+configure_package_config_file(cmake/cudf-config.cmake.in "${CUDF_BINARY_DIR}/cmake/cudf-config.cmake"
                               INSTALL_DESTINATION "${INSTALL_CONFIGDIR}")
 
-write_basic_package_version_file("${CUDF_BINARY_DIR}/cudf-config-version.cmake"
+write_basic_package_version_file("${CUDF_BINARY_DIR}/cmake/cudf-config-version.cmake"
                                  COMPATIBILITY SameMinorVersion)
 
-install(FILES   "${CUDF_BINARY_DIR}/cudf-config.cmake"
-                "${CUDF_BINARY_DIR}/cudf-config-version.cmake"
+install(FILES   "${CUDF_BINARY_DIR}/cmake/cudf-config.cmake"
+                "${CUDF_BINARY_DIR}/cmake/cudf-config-version.cmake"
                 "${CUDF_SOURCE_DIR}/cmake/install/FindThrust.cmake"
     DESTINATION "${INSTALL_CONFIGDIR}")
 
@@ -506,6 +539,29 @@ install(EXPORT  cudf-targets
     FILE        cudf-targets.cmake
     NAMESPACE   cudf::
     DESTINATION "${INSTALL_CONFIGDIR}")
+
+################################################################################################
+# - build export -------------------------------------------------------------------------------
+configure_package_config_file(cmake/cudf-build-config.cmake.in ${CUDF_BINARY_DIR}/cudf-config.cmake
+                              INSTALL_DESTINATION ${CUDF_BINARY_DIR})
+
+write_basic_package_version_file(${CUDF_BINARY_DIR}/cudf-config-version.cmake
+                                 COMPATIBILITY SameMinorVersion)
+
+if(TARGET arrow_shared)
+    export(TARGETS arrow_shared arrow_cuda_shared
+        FILE ${CUDF_BINARY_DIR}/cudf-arrow-targets.cmake
+        NAMESPACE   cudf::)
+elseif(TARGET arrow_static)
+    export(TARGETS arrow_static arrow_cuda_static
+        FILE ${CUDF_BINARY_DIR}/cudf-arrow-targets.cmake
+        NAMESPACE   cudf::)
+endif()
+
+export(EXPORT cudf-targets
+    FILE ${CUDF_BINARY_DIR}/cudf-targets.cmake
+    NAMESPACE   cudf::)
+
 
 ###################################################################################################
 # - make documentation ----------------------------------------------------------------------------
