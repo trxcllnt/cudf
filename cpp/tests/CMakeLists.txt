@@ -44,7 +44,7 @@ target_include_directories(cudftestutil
     PUBLIC "$<BUILD_INTERFACE:${CUDF_SOURCE_DIR}>"
            "$<BUILD_INTERFACE:${CUDF_SOURCE_DIR}/src>")
 
-install(TARGETS cudftestutil gmock gtest gmock_main gtest_main
+install(TARGETS cudftestutil
         DESTINATION lib
         EXPORT cudf-targets)
 
@@ -96,6 +96,7 @@ ConfigureTest(GROUPBY_TEST
     groupby/group_sum_test.cpp
     groupby/group_min_test.cpp
     groupby/group_max_test.cpp
+    groupby/group_sum_of_squares_test.cpp
     groupby/group_mean_test.cpp
     groupby/group_var_test.cpp
     groupby/group_std_test.cpp
@@ -365,6 +366,7 @@ ConfigureTest(STRINGS_TEST
     strings/findall_tests.cpp
     strings/find_tests.cpp
     strings/find_multiple_tests.cpp
+    strings/fixed_point_tests.cpp
     strings/floats_tests.cpp
     strings/hash_string.cu
     strings/integers_tests.cu

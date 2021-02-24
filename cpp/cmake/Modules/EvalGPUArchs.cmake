@@ -14,8 +14,6 @@
 # limitations under the License.
 #=============================================================================
 
-enable_language(CUDA)
-
 function(evaluate_gpu_archs gpu_archs)
   set(eval_file ${PROJECT_BINARY_DIR}/eval_gpu_archs.cu)
   set(eval_exe ${PROJECT_BINARY_DIR}/eval_gpu_archs)
@@ -60,6 +58,6 @@ int main(int argc, char** argv) {
     OUTPUT_VARIABLE __gpu_archs
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_FILE ${error_file})
-    message(VERBOSE "CUDF: Auto detection of gpu-archs: ${__gpu_archs}")
+  message(VERBOSE "CUDF: Auto detection of gpu-archs: ${__gpu_archs}")
   set(${gpu_archs} ${__gpu_archs} PARENT_SCOPE)
 endfunction()

@@ -16,7 +16,25 @@
 
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
+# If `CMAKE_CUDA_ARCHITECTURES` is not defined, build for all supported architectures. If
+# `CMAKE_CUDA_ARCHITECTURES` is set to an empty string (""), build for only the current
+# architecture. If `CMAKE_CUDA_ARCHITECTURES` is specified by the user, use user setting.
+
+# This needs to be run before enabling the CUDA language due to the default initialization behavior
+# of `CMAKE_CUDA_ARCHITECTURES`, https://gitlab.kitware.com/cmake/cmake/-/issues/21302
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  set(CUDF_BUILD_FOR_ALL_ARCHS TRUE)
+elseif(CMAKE_CUDA_ARCHITECTURES STREQUAL "")
+  unset(CMAKE_CUDA_ARCHITECTURES CACHE)
+  set(CUDF_BUILD_FOR_DETECTED_ARCHS TRUE)
+endif()
+
 project(CUDF VERSION 0.19.0 LANGUAGES C CXX)
+
+# Needed because GoogleBenchmark changes the state of FindThreads.cmake,
+# causing subsequent runs to have different values for the `Threads::Threads` target.
+# Setting this flag ensures `Threads::Threads` is the same value in first run and subsequent runs.
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 ###################################################################################################
 # - build options ---------------------------------------------------------------------------------
@@ -28,7 +46,6 @@ option(BUILD_SHARED_LIBS "Build cuDF shared libraries" ON)
 option(JITIFY_USE_CACHE "Use a file cache for JIT compiled kernels" ON)
 option(ARROW_STATIC_LIB "Build and statically link Arrow libraries" OFF)
 option(PER_THREAD_DEFAULT_STREAM "Build with per-thread default stream" OFF)
-option(AUTO_DETECT_CUDA_ARCHITECTURES "Auto-detect CUDA architectures to build from the GPUs on the current system" OFF)
 option(DISABLE_DEPRECATION_WARNING "Disable warnings generated from deprecated declarations." OFF)
 # Option to enable line info in CUDA device compilation to allow introspection when profiling / memchecking
 option(CUDA_ENABLE_LINEINFO "Enable the -lineinfo option for nvcc (useful for cuda-memcheck / profiler" OFF)
@@ -42,7 +59,6 @@ message(VERBOSE "CUDF: Build cuDF shared libraries: ${BUILD_SHARED_LIBS}")
 message(VERBOSE "CUDF: Use a file cache for JIT compiled kernels: ${JITIFY_USE_CACHE}")
 message(VERBOSE "CUDF: Build and statically link Arrow libraries: ${ARROW_STATIC_LIB}")
 message(VERBOSE "CUDF: Build with per-thread default stream: ${PER_THREAD_DEFAULT_STREAM}")
-message(VERBOSE "CUDF: Auto-detect CUDA architectures to build from the GPUs on the current system: ${AUTO_DETECT_CUDA_ARCHITECTURES}")
 message(VERBOSE "CUDF: Disable warnings generated from deprecated declarations: ${DISABLE_DEPRECATION_WARNING}")
 message(VERBOSE "CUDF: Enable the -lineinfo option for nvcc (useful for cuda-memcheck / profiler: ${CUDA_ENABLE_LINEINFO}")
 message(VERBOSE "CUDF: Statically link the CUDA runtime: ${CUDA_STATIC_RUNTIME}")
@@ -115,51 +131,6 @@ include(cmake/thirdparty/CUDF_GetDLPack.cmake)
 include(cmake/thirdparty/CUDF_GetLibcudacxx.cmake)
 # Stringify libcudf and libcudacxx headers used in JIT operations
 include(cmake/Modules/StringifyJITHeaders.cmake)
-
-if (CUDF_BUILD_TESTS OR CUDF_BUILD_BENCHMARKS)
-    # Find or install GoogleTest
-    CPMFindPackage(NAME GTest
-        VERSION         1.10.0
-        GIT_REPOSITORY  https://github.com/google/googletest.git
-        GIT_TAG         release-1.10.0
-        GIT_SHALLOW     TRUE
-        OPTIONS         "INSTALL_GTEST OFF"
-        # googletest >= 1.10.0 provides a cmake config file -- use it if it exists
-        FIND_PACKAGE_ARGUMENTS "CONFIG")
-    # Add GTest aliases if they don't already exist.
-    # Assumes if GTest::gtest doesn't exist, the others don't either.
-    # TODO: Is this always a valid assumption?
-    if(NOT TARGET GTest::gtest)
-        add_library(GTest::gtest ALIAS gtest)
-        add_library(GTest::gmock ALIAS gmock)
-        add_library(GTest::gtest_main ALIAS gtest_main)
-        add_library(GTest::gmock_main ALIAS gmock_main)
-    endif()
-endif()
-
-###################################################################################################
-# - add tests -------------------------------------------------------------------------------------
-
-if(CUDF_BUILD_TESTS)
-    # include CTest module -- automatically calls enable_testing()
-    include(CTest)
-    add_subdirectory(tests)
-endif()
-
-###################################################################################################
-# - add benchmarks --------------------------------------------------------------------------------
-
-if(CUDF_BUILD_BENCHMARKS)
-    # Find or install GoogleBench
-    CPMFindPackage(NAME benchmark
-        VERSION         1.5.2
-        GIT_REPOSITORY  https://github.com/google/benchmark.git
-        GIT_TAG         v1.5.2
-        GIT_SHALLOW     TRUE
-        OPTIONS         "BENCHMARK_ENABLE_TESTING OFF"
-                        "BENCHMARK_ENABLE_INSTALL OFF")
-    add_subdirectory(benchmarks)
-endif()
 
 ###################################################################################################
 # - library targets -------------------------------------------------------------------------------
@@ -342,6 +313,7 @@ add_library(cudf
     src/strings/convert/convert_booleans.cu
     src/strings/convert/convert_datetime.cu
     src/strings/convert/convert_durations.cu
+    src/strings/convert/convert_fixed_point.cu
     src/strings/convert/convert_floats.cu
     src/strings/convert/convert_hex.cu
     src/strings/convert/convert_integers.cu
@@ -487,17 +459,82 @@ else()
     target_link_libraries(cudf PUBLIC CUDA::nvrtc CUDA::cudart CUDA::cuda_driver)
 endif()
 
-file(WRITE "${CUDF_BINARY_DIR}/fatbin.ld" "
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+    file(WRITE "${CUDF_BINARY_DIR}/fatbin.ld"
+[=[
 SECTIONS
 {
   .nvFatBinSegment : { *(.nvFatBinSegment) }
   .nv_fatbin : { *(.nv_fatbin) }
 }
-")
-
-target_link_options(cudf PRIVATE "${CUDF_BINARY_DIR}/fatbin.ld")
+]=])
+    target_link_options(cudf PRIVATE "${CUDF_BINARY_DIR}/fatbin.ld")
+endif()
 
 add_library(cudf::cudf ALIAS cudf)
+
+###################################################################################################
+# - tests and benchmarks --------------------------------------------------------------------------
+###################################################################################################
+
+if (CUDF_BUILD_TESTS OR CUDF_BUILD_BENCHMARKS)
+    # Find or install GoogleTest
+    CPMFindPackage(NAME GTest
+        VERSION         1.10.0
+        GIT_REPOSITORY  https://github.com/google/googletest.git
+        GIT_TAG         release-1.10.0
+        GIT_SHALLOW     TRUE
+        OPTIONS         "INSTALL_GTEST OFF"
+        # googletest >= 1.10.0 provides a cmake config file -- use it if it exists
+        FIND_PACKAGE_ARGUMENTS "CONFIG")
+    # Add GTest aliases if they don't already exist.
+    # Assumes if GTest::gtest doesn't exist, the others don't either.
+    # TODO: Is this always a valid assumption?
+    if(NOT TARGET GTest::gtest)
+        add_library(GTest::gtest ALIAS gtest)
+        add_library(GTest::gmock ALIAS gmock)
+        add_library(GTest::gtest_main ALIAS gtest_main)
+        add_library(GTest::gmock_main ALIAS gmock_main)
+    endif()
+    if(GTest_ADDED)
+        install(TARGETS gmock
+                        gtest
+                        gmock_main
+                        gtest_main
+            DESTINATION lib
+            EXPORT cudf-targets)
+    endif()
+endif()
+
+###################################################################################################
+# - add tests -------------------------------------------------------------------------------------
+
+if(CUDF_BUILD_TESTS)
+    # include CTest module -- automatically calls enable_testing()
+    include(CTest)
+    add_subdirectory(tests)
+endif()
+
+###################################################################################################
+# - add benchmarks --------------------------------------------------------------------------------
+
+if(CUDF_BUILD_BENCHMARKS)
+    # Find or install GoogleBench
+    CPMFindPackage(NAME benchmark
+        VERSION         1.5.2
+        GIT_REPOSITORY  https://github.com/google/benchmark.git
+        GIT_TAG         v1.5.2
+        GIT_SHALLOW     TRUE
+        OPTIONS         "BENCHMARK_ENABLE_TESTING OFF"
+                        "BENCHMARK_ENABLE_INSTALL OFF")
+    if(benchmark_ADDED)
+        install(TARGETS benchmark
+                        benchmark_main
+            DESTINATION lib
+            EXPORT cudf-targets)
+    endif()
+    add_subdirectory(benchmarks)
+endif()
 
 ###################################################################################################
 # - install targets -------------------------------------------------------------------------------
@@ -549,13 +586,19 @@ write_basic_package_version_file(${CUDF_BINARY_DIR}/cudf-config-version.cmake
                                  COMPATIBILITY SameMinorVersion)
 
 if(TARGET arrow_shared)
-    export(TARGETS arrow_shared arrow_cuda_shared
-        FILE ${CUDF_BINARY_DIR}/cudf-arrow-targets.cmake
-        NAMESPACE   cudf::)
+    get_target_property(arrow_is_imported arrow_shared IMPORTED)
+    if(NOT arrow_is_imported)
+        export(TARGETS arrow_shared arrow_cuda_shared
+            FILE ${CUDF_BINARY_DIR}/cudf-arrow-targets.cmake
+            NAMESPACE   cudf::)
+    endif()
 elseif(TARGET arrow_static)
-    export(TARGETS arrow_static arrow_cuda_static
-        FILE ${CUDF_BINARY_DIR}/cudf-arrow-targets.cmake
-        NAMESPACE   cudf::)
+    get_target_property(arrow_is_imported arrow_static IMPORTED)
+    if(NOT arrow_is_imported)
+        export(TARGETS arrow_static arrow_cuda_static
+            FILE ${CUDF_BINARY_DIR}/cudf-arrow-targets.cmake
+            NAMESPACE   cudf::)
+    endif()
 endif()
 
 export(EXPORT cudf-targets
