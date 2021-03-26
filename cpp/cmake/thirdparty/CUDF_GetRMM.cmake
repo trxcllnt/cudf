@@ -56,10 +56,10 @@ function(find_and_configure_rmm VERSION)
     # Make sure consumers of cudf can also see rmm::rmm
     fix_cmake_global_defaults(rmm::rmm)
 
-    if(NOT rmm_BINARY_DIR IN_LIST CMAKE_PREFIX_PATH)
-        list(APPEND CMAKE_PREFIX_PATH "${rmm_BINARY_DIR}")
-        set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} PARENT_SCOPE)
-    endif()
+    # if(NOT rmm_BINARY_DIR IN_LIST CMAKE_PREFIX_PATH)
+    #     list(APPEND CMAKE_PREFIX_PATH "${rmm_BINARY_DIR}")
+    #     set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} PARENT_SCOPE)
+    # endif()
 endfunction()
 
 set(CUDF_MIN_VERSION_rmm "${CUDF_VERSION_MAJOR}.${CUDF_VERSION_MINOR}")
