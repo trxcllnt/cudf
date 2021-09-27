@@ -20,8 +20,8 @@ function(find_and_configure_nvcomp VERSION)
     rapids_cpm_find(nvcomp ${VERSION}
         GLOBAL_TARGETS     nvcomp::nvcomp
         CPM_ARGS
-            GITHUB_REPOSITORY  NVIDIA/nvcomp
-            GIT_TAG            aa003db89e052e4ce408910ff17e1054b7c43b7d
+            GITHUB_REPOSITORY  trxcllnt/nvcomp
+            GIT_TAG            8dc06b1afd349b16fe42f13be553baa028cc1aaf
             OPTIONS            "BUILD_STATIC ON"
                                "BUILD_TESTS OFF"
                                "BUILD_BENCHMARKS OFF"
