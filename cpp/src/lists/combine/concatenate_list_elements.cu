@@ -17,7 +17,7 @@
 #include <cudf/column/column_device_view.cuh>
 #include <cudf/column/column_factories.hpp>
 #include <cudf/detail/copy.hpp>
-#include <cudf/detail/gather.cuh>
+#include <cudf/detail/gather.hpp>
 #include <cudf/detail/get_value.cuh>
 #include <cudf/detail/nvtx/ranges.hpp>
 #include <cudf/detail/valid_if.cuh>
@@ -202,9 +202,9 @@ std::unique_ptr<column> gather_list_entries(column_view const& input,
     });
 
   auto result = cudf::detail::gather(table_view{{entry_col}},
-                                     gather_map.begin(),
-                                     gather_map.end(),
+                                     gather_map,
                                      out_of_bounds_policy::DONT_CHECK,
+                                     cudf::detail::negative_index_policy::NOT_ALLOWED,
                                      stream,
                                      mr);
   return std::move(result->release()[0]);
@@ -225,7 +225,7 @@ std::unique_ptr<column> concatenate_lists_nullifying_rows(column_view const& inp
   auto list_entries =
     gather_list_entries(input, offsets_view, num_rows, num_output_entries, stream, mr);
   auto [null_mask, null_count] = cudf::detail::valid_if(
-    list_validities.begin(), list_validities.end(), thrust::identity<int8_t>{}, stream, mr);
+    list_validities.begin(), list_validities.end(), thrust::identity{}, stream, mr);
 
   return make_lists_column(num_rows,
                            std::move(list_offsets),

@@ -3,6 +3,7 @@
 # cython: boundscheck = False
 
 import errno
+import io
 import os
 from collections import OrderedDict
 
@@ -45,7 +46,7 @@ from cudf._lib.column cimport Column
 from cudf._lib.cpp.io.parquet cimport (
     chunked_parquet_writer_options,
     chunked_parquet_writer_options_builder,
-    merge_rowgroup_metadata as parquet_merge_metadata,
+    merge_row_group_metadata as parquet_merge_metadata,
     parquet_chunked_writer as cpp_parquet_chunked_writer,
     parquet_reader_options,
     parquet_writer_options,
@@ -56,12 +57,15 @@ from cudf._lib.cpp.io.types cimport column_in_metadata, table_input_metadata
 from cudf._lib.cpp.table.table cimport table
 from cudf._lib.cpp.table.table_view cimport table_view
 from cudf._lib.cpp.types cimport data_type, size_type
+from cudf._lib.io.datasource cimport Datasource, NativeFileDatasource
 from cudf._lib.io.utils cimport (
     make_sink_info,
     make_source_info,
     update_struct_field_names,
 )
-from cudf._lib.table cimport Table, table_view_from_table
+from cudf._lib.utils cimport table_view_from_table
+
+from pyarrow.lib import NativeFile
 
 
 cdef class BufferArrayFromVector:
@@ -116,6 +120,16 @@ cpdef read_parquet(filepaths_or_buffers, columns=None, row_groups=None,
     cudf.io.parquet.to_parquet
     """
 
+    # Convert NativeFile buffers to NativeFileDatasource,
+    # but save original buffers in case we need to use
+    # pyarrow for metadata processing
+    # (See: https://github.com/rapidsai/cudf/issues/9599)
+    pa_buffers = []
+    for i, datasource in enumerate(filepaths_or_buffers):
+        if isinstance(datasource, NativeFile):
+            pa_buffers.append(datasource)
+            filepaths_or_buffers[i] = NativeFileDatasource(datasource)
+
     cdef cudf_io_types.source_info source = make_source_info(
         filepaths_or_buffers)
 
@@ -160,6 +174,7 @@ cpdef read_parquet(filepaths_or_buffers, columns=None, row_groups=None,
 
     # Access the Parquet user_data json to find the index
     index_col = None
+    is_range_index = False
     cdef map[string, string] user_data = c_out_table.metadata.user_data
     json_str = user_data[b'pandas'].decode('utf-8')
     meta = None
@@ -171,7 +186,6 @@ cpdef read_parquet(filepaths_or_buffers, columns=None, row_groups=None,
                     index_col[0]['kind'] == 'range':
                 is_range_index = True
             else:
-                is_range_index = False
                 index_col_names = OrderedDict()
                 for idx_col in index_col:
                     for c in meta['columns']:
@@ -187,7 +201,7 @@ cpdef read_parquet(filepaths_or_buffers, columns=None, row_groups=None,
     # update the decimal precision of each column
     if meta is not None:
         for col, col_meta in zip(column_names, meta["columns"]):
-            if isinstance(df._data[col].dtype, cudf.Decimal64Dtype):
+            if is_decimal_dtype(df._data[col].dtype):
                 df._data[col].dtype.precision = (
                     col_meta["metadata"]["precision"]
                 )
@@ -198,7 +212,12 @@ cpdef read_parquet(filepaths_or_buffers, columns=None, row_groups=None,
             range_index_meta = index_col[0]
             if row_groups is not None:
                 per_file_metadata = [
-                    pa.parquet.read_metadata(s) for s in filepaths_or_buffers
+                    pa.parquet.read_metadata(
+                        # Pyarrow cannot read directly from bytes
+                        io.BytesIO(s) if isinstance(s, bytes) else s
+                    ) for s in (
+                        pa_buffers or filepaths_or_buffers
+                    )
                 ]
 
                 filtered_idx = []
@@ -257,13 +276,15 @@ cpdef read_parquet(filepaths_or_buffers, columns=None, row_groups=None,
     return df
 
 cpdef write_parquet(
-        Table table,
+        table,
         object path,
         object index=None,
         object compression="snappy",
         object statistics="ROWGROUP",
         object metadata_file_path=None,
-        object int96_timestamps=False):
+        object int96_timestamps=False,
+        object row_group_size_bytes=None,
+        object row_group_size_rows=None):
     """
     Cython function to call into libcudf API, see `write_parquet`.
 
@@ -315,7 +336,6 @@ cpdef write_parquet(
     cdef cudf_io_types.compression_type comp_type = _get_comp_type(compression)
     cdef cudf_io_types.statistics_freq stat_freq = _get_stat_freq(statistics)
 
-    cdef parquet_writer_options args
     cdef unique_ptr[vector[uint8_t]] out_metadata_c
     cdef string c_column_chunks_file_path
     cdef bool _int96_timestamps = int96_timestamps
@@ -323,16 +343,21 @@ cpdef write_parquet(
         c_column_chunks_file_path = str.encode(metadata_file_path)
 
     # Perform write
+    cdef parquet_writer_options args = move(
+        parquet_writer_options.builder(sink, tv)
+        .metadata(tbl_meta.get())
+        .compression(comp_type)
+        .stats_level(stat_freq)
+        .column_chunks_file_path(c_column_chunks_file_path)
+        .int96_timestamps(_int96_timestamps)
+        .build()
+    )
+    if row_group_size_bytes is not None:
+        args.set_row_group_size_bytes(row_group_size_bytes)
+    if row_group_size_rows is not None:
+        args.set_row_group_size_rows(row_group_size_rows)
+
     with nogil:
-        args = move(
-            parquet_writer_options.builder(sink, tv)
-            .metadata(tbl_meta.get())
-            .compression(comp_type)
-            .stats_level(stat_freq)
-            .column_chunks_file_path(c_column_chunks_file_path)
-            .int96_timestamps(_int96_timestamps)
-            .build()
-        )
         out_metadata_c = move(parquet_writer(args))
 
     if metadata_file_path is not None:
@@ -370,7 +395,7 @@ cdef class ParquetWriter:
         self.index = index
         self.initialized = False
 
-    def write_table(self, Table table):
+    def write_table(self, table):
         """ Writes a single table to the file """
         if not self.initialized:
             self._initialize_chunked_state(table)
@@ -412,7 +437,7 @@ cdef class ParquetWriter:
     def __dealloc__(self):
         self.close()
 
-    def _initialize_chunked_state(self, Table table):
+    def _initialize_chunked_state(self, table):
         """ Prepares all the values required to build the
         chunked_parquet_writer_options and creates a writer"""
         cdef table_view tv
@@ -464,11 +489,11 @@ cdef class ParquetWriter:
 
 cpdef merge_filemetadata(object filemetadata_list):
     """
-    Cython function to call into libcudf API, see `merge_rowgroup_metadata`.
+    Cython function to call into libcudf API, see `merge_row_group_metadata`.
 
     See Also
     --------
-    cudf.io.parquet.merge_rowgroup_metadata
+    cudf.io.parquet.merge_row_group_metadata
     """
     cdef vector[unique_ptr[vector[uint8_t]]] list_c
     cdef vector[uint8_t] blob_c

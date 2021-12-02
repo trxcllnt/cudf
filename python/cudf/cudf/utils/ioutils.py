@@ -11,6 +11,9 @@ import fsspec.implementations.local
 import numpy as np
 import pandas as pd
 from fsspec.core import get_fs_token_paths
+from pyarrow import PythonFile as ArrowPythonFile
+from pyarrow.fs import FSSpecHandler, PyFileSystem
+from pyarrow.lib import NativeFile
 
 from cudf.utils.docutils import docfmt_partial
 
@@ -154,6 +157,10 @@ strings_to_categorical : boolean, default False
 use_pandas_metadata : boolean, default True
     If True and dataset has custom PANDAS schema metadata, ensure that index
     columns are also loaded.
+use_python_file_object : boolean, default False
+    If True, Arrow-backed PythonFile objects will be used in place of fsspec
+    AbstractBufferedFile objects at IO time. This option is likely to improve
+    performance when making small reads from larger parquet files.
 
 Returns
 -------
@@ -214,6 +221,12 @@ int96_timestamps : bool, default False
     timestamp[us] to the int96 format, which is the number of Julian
     days and the number of nanoseconds since midnight. If ``False``,
     timestamps will not be altered.
+row_group_size_bytes: integer or None, default None
+    Maximum size of each stripe of the output.
+    If None, 13369344 (128MB) will be used.
+row_group_size_rows: integer or None, default None
+    Maximum number of rows of each stripe of the output.
+    If None, 1000000 will be used.
 
 
 See Also
@@ -350,6 +363,10 @@ use_index : bool, default True
 decimal_cols_as_float: list, default None
     If specified, names of the columns that should be converted from
     Decimal to Float64 in the resulting dataframe.
+use_python_file_object : boolean, default True
+    If True, Arrow-backed PythonFile objects will be used in place of fsspec
+    AbstractBufferedFile objects at IO time. This option is likely to improve
+    performance when making small reads from larger ORC files.
 kwargs are passed to the engine
 
 Returns
@@ -390,6 +407,15 @@ compression : {{ 'snappy', None }}, default None
     Name of the compression to use. Use None for no compression.
 enable_statistics: boolean, default True
     Enable writing column statistics.
+stripe_size_bytes: integer or None, default None
+    Maximum size of each stripe of the output.
+    If None, 67108864 (64MB) will be used.
+stripe_size_rows: integer or None, default None
+    Maximum number of rows of each stripe of the output.
+    If None, 1000000 will be used.
+row_index_stride: integer or None, default None
+    Row index stride (maximum number of rows in each row group).
+    If None, 10000 will be used.
 
 
 Notes
@@ -877,6 +903,10 @@ prefix : str, default None
 index_col : int, string or False, default None
     Column to use as the row labels of the DataFrame. Passing `index_col=False`
     explicitly disables index column inference and discards the last column.
+use_python_file_object : boolean, default True
+    If True, Arrow-backed PythonFile objects will be used in place of fsspec
+    AbstractBufferedFile objects at IO time. This option is likely to improve
+    performance when making small reads from larger CSV files.
 
 Returns
 -------
@@ -1008,7 +1038,7 @@ partition : int,
     should consume messages from. Valid values are 0 - (N-1)
 start_offset : int, Kafka Topic/Partition offset that consumption
     should begin at. Inclusive.
-end_offset : int, Kafka Topic/Parition offset that consumption
+end_offset : int, Kafka Topic/Partition offset that consumption
     should end at. Inclusive.
 batch_timeout : int, default 10000
     Maximum number of milliseconds that will be spent trying to
@@ -1031,7 +1061,7 @@ filepath_or_buffer : str, path object, or file-like object
     or any object with a `read()` method (such as builtin `open()` file handler
     function or `StringIO`).
 delimiter : string, default None, The delimiter that should be used
-    for splitting text chunks into seperate cudf column rows. Currently
+    for splitting text chunks into separate cudf column rows. Currently
     only a single delimiter is supported.
 
 Returns
@@ -1091,7 +1121,8 @@ def _is_local_filesystem(fs):
 
 
 def ensure_single_filepath_or_buffer(path_or_data, **kwargs):
-    """Return False if `path_or_data` resolves to multiple filepaths or buffers
+    """Return False if `path_or_data` resolves to multiple filepaths or
+    buffers.
     """
     path_or_data = stringify_pathlike(path_or_data)
     if isinstance(path_or_data, str):
@@ -1116,8 +1147,7 @@ def ensure_single_filepath_or_buffer(path_or_data, **kwargs):
 
 
 def is_directory(path_or_data, **kwargs):
-    """Returns True if the provided filepath is a directory
-    """
+    """Returns True if the provided filepath is a directory"""
     path_or_data = stringify_pathlike(path_or_data)
     if isinstance(path_or_data, str):
         storage_options = kwargs.get("storage_options")
@@ -1180,7 +1210,9 @@ def get_filepath_or_buffer(
     compression,
     mode="rb",
     fs=None,
-    iotypes=(BytesIO,),
+    iotypes=(BytesIO, NativeFile),
+    byte_ranges=None,
+    use_python_file_object=False,
     **kwargs,
 ):
     """Return either a filepath string to data, or a memory buffer of data.
@@ -1197,6 +1229,11 @@ def get_filepath_or_buffer(
         Mode in which file is opened
     iotypes : (), default (BytesIO)
         Object type to exclude from file-like check
+    byte_ranges : list, optional
+        List of known byte ranges that will be read from path_or_data
+    use_python_file_object : boolean, default False
+        If True, Arrow-backed PythonFile objects will be used in place
+        of fsspec AbstractBufferedFile objects.
 
     Returns
     -------
@@ -1229,21 +1266,38 @@ def get_filepath_or_buffer(
                 path_or_data = paths if len(paths) > 1 else paths[0]
 
         else:
-            path_or_data = [
-                BytesIO(
-                    _fsspec_data_transfer(fpath, fs=fs, mode=mode, **kwargs)
-                )
-                for fpath in paths
-            ]
+            if use_python_file_object:
+                pa_fs = PyFileSystem(FSSpecHandler(fs))
+                path_or_data = [
+                    pa_fs.open_input_file(fpath) for fpath in paths
+                ]
+            else:
+                path_or_data = [
+                    BytesIO(
+                        _fsspec_data_transfer(
+                            fpath,
+                            fs=fs,
+                            mode=mode,
+                            byte_ranges=byte_ranges,
+                            **kwargs,
+                        )
+                    )
+                    for fpath in paths
+                ]
             if len(path_or_data) == 1:
                 path_or_data = path_or_data[0]
 
     elif not isinstance(path_or_data, iotypes) and is_file_like(path_or_data):
         if isinstance(path_or_data, TextIOWrapper):
             path_or_data = path_or_data.buffer
-        path_or_data = BytesIO(
-            _fsspec_data_transfer(path_or_data, mode=mode, **kwargs)
-        )
+        if use_python_file_object:
+            path_or_data = ArrowPythonFile(path_or_data)
+        else:
+            path_or_data = BytesIO(
+                _fsspec_data_transfer(
+                    path_or_data, mode=mode, byte_ranges=byte_ranges, **kwargs
+                )
+            )
 
     return path_or_data, compression
 
@@ -1482,7 +1536,6 @@ def _fsspec_data_transfer(
     bytes_per_thread=256_000_000,
     max_gap=64_000,
     mode="rb",
-    clip_local_buffer=False,
     **kwargs,
 ):
 
@@ -1541,14 +1594,6 @@ def _fsspec_data_transfer(
         _read_byte_ranges(
             path_or_fob, byte_ranges, buf, fs=fs, **kwargs,
         )
-
-    if clip_local_buffer:
-        # If we only need the populated byte range
-        # (e.g. a csv byte-range read) then clip parts
-        # of the local buffer that are outside this range
-        start = byte_ranges[0][0]
-        end = byte_ranges[-1][0] + byte_ranges[-1][1]
-        return buf[start:end].tobytes()
 
     return buf.tobytes()
 

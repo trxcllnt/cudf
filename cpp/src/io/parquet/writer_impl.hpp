@@ -56,18 +56,11 @@ using cudf::detail::hostdevice_2dvector;
  * @brief Implementation for parquet writer
  */
 class writer::impl {
-  // Parquet datasets are divided into fixed-size, independent rowgroups
-  static constexpr uint32_t DEFAULT_ROWGROUP_MAXSIZE = 128 * 1024 * 1024;  // 128MB
-  static constexpr uint32_t DEFAULT_ROWGROUP_MAXROWS = 1000000;            // Or at most 1M rows
-
-  // rowgroups are divided into pages
-  static constexpr uint32_t DEFAULT_TARGET_PAGE_SIZE = 512 * 1024;
-
  public:
   /**
    * @brief Constructor with writer options.
    *
-   * @param filepath Filepath if storing dataset to a file
+   * @param sink data_sink for storing dataset
    * @param options Settings for controlling behavior
    * @param mode Option to write at once or in chunks
    * @param stream CUDA stream used for device memory operations and kernel launches
@@ -82,11 +75,11 @@ class writer::impl {
   /**
    * @brief Constructor with chunked writer options.
    *
-   * @param filepath Filepath if storing dataset to a file
+   * @param sink data_sink for storing dataset
    * @param options Settings for controlling behavior
    * @param mode Option to write at once or in chunks
-   * @param mr Device memory resource to use for device memory allocation
    * @param stream CUDA stream used for device memory operations and kernel launches
+   * @param mr Device memory resource to use for device memory allocation
    */
   explicit impl(std::unique_ptr<data_sink> sink,
                 chunked_parquet_writer_options const& options,
@@ -209,9 +202,8 @@ class writer::impl {
   // Cuda stream to be used
   rmm::cuda_stream_view stream = rmm::cuda_stream_default;
 
-  size_t max_rowgroup_size_          = DEFAULT_ROWGROUP_MAXSIZE;
-  size_t max_rowgroup_rows_          = DEFAULT_ROWGROUP_MAXROWS;
-  size_t target_page_size_           = DEFAULT_TARGET_PAGE_SIZE;
+  size_t max_row_group_size          = default_row_group_size_bytes;
+  size_type max_row_group_rows       = default_row_group_size_rows;
   Compression compression_           = Compression::UNCOMPRESSED;
   statistics_freq stats_granularity_ = statistics_freq::STATISTICS_NONE;
   bool int96_timestamps              = false;
