@@ -19,7 +19,7 @@ function(find_and_configure_nvcomp VERSION)
   rapids_cpm_find(
     nvcomp ${VERSION}
     GLOBAL_TARGETS nvcomp::nvcomp
-    CPM_ARGS GITHUB_REPOSITORY trxcllnt/nvcomp GIT_TAG fix/absolute-paths
+    CPM_ARGS GITHUB_REPOSITORY trxcllnt/nvcomp GIT_TAG fix/cmake-absolute-paths
     OPTIONS "BUILD_STATIC ON" "BUILD_TESTS OFF" "BUILD_BENCHMARKS OFF" "BUILD_EXAMPLES OFF"
   )
 
