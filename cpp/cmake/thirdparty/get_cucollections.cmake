@@ -18,7 +18,7 @@ function(find_and_configure_cucollections)
   # Find or install cuCollections
   rapids_cpm_find(
     # cuCollections doesn't have a version yet
-    cuco 0.0
+    cuco 0.0.1
     GLOBAL_TARGETS cuco::cuco
     CPM_ARGS GITHUB_REPOSITORY NVIDIA/cuCollections
     GIT_TAG 0ca860b824f5dc22cf8a41f09912e62e11f07d82
