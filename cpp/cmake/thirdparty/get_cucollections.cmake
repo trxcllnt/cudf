@@ -20,8 +20,8 @@ function(find_and_configure_cucollections)
     # cuCollections doesn't have a version yet
     cuco 0.0.1
     GLOBAL_TARGETS cuco::cuco
-    CPM_ARGS GITHUB_REPOSITORY NVIDIA/cuCollections
-    GIT_TAG 0ca860b824f5dc22cf8a41f09912e62e11f07d82
+    CPM_ARGS GITHUB_REPOSITORY robertmaynard/cuCollections
+    GIT_TAG move_to_latest_rapids_cmake
     OPTIONS "BUILD_TESTS OFF" "BUILD_BENCHMARKS OFF" "BUILD_EXAMPLES OFF"
   )
 
