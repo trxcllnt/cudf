@@ -87,7 +87,7 @@ if myplat == 'x86_64':
     install_requires.append(
         "cupy-cuda"
         + get_cuda_version_from_header(cuda_include_dir)
-        + ">=9.5.0,<11.0.0a0"
+        + ">=9.5.0,<12.0.0a0"
     )
 
 
