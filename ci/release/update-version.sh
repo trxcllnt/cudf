@@ -49,16 +49,16 @@ sed_runner 's/'"VERSION ${CURRENT_SHORT_TAG}.*"'/'"VERSION ${NEXT_FULL_TAG}"'/g'
 sed_runner 's/'"VERSION ${CURRENT_SHORT_TAG}.*"'/'"VERSION ${NEXT_FULL_TAG}"'/g' java/src/main/native/CMakeLists.txt
 
 # Python __init__.py updates
-sed_runner "s/__version__ = .*/__version__ = \"${NEXT_FULL_TAG}\"/g" python/cudf/cudf/__init__.py
-sed_runner "s/__version__ = .*/__version__ = \"${NEXT_FULL_TAG}\"/g" python/dask_cudf/dask_cudf/__init__.py
-sed_runner "s/__version__ = .*/__version__ = \"${NEXT_FULL_TAG}\"/g" python/cudf_kafka/cudf_kafka/__init__.py
-sed_runner "s/__version__ = .*/__version__ = \"${NEXT_FULL_TAG}\"/g" python/custreamz/custreamz/__init__.py
+sed_runner "s/__version__ = .*/__version__ = \"${NEXT_SHORT_TAG_PEP440}\"/g" python/cudf/cudf/__init__.py
+sed_runner "s/__version__ = .*/__version__ = \"${NEXT_SHORT_TAG_PEP440}\"/g" python/dask_cudf/dask_cudf/__init__.py
+sed_runner "s/__version__ = .*/__version__ = \"${NEXT_SHORT_TAG_PEP440}\"/g" python/cudf_kafka/cudf_kafka/__init__.py
+sed_runner "s/__version__ = .*/__version__ = \"${NEXT_SHORT_TAG_PEP440}\"/g" python/custreamz/custreamz/__init__.py
 
 # Python pyproject.toml updates
-sed_runner "s/^version = .*/version = \"${NEXT_FULL_TAG}\"/g" python/cudf/pyproject.toml
-sed_runner "s/^version = .*/version = \"${NEXT_FULL_TAG}\"/g" python/dask_cudf/pyproject.toml
-sed_runner "s/^version = .*/version = \"${NEXT_FULL_TAG}\"/g" python/cudf_kafka/pyproject.toml
-sed_runner "s/^version = .*/version = \"${NEXT_FULL_TAG}\"/g" python/custreamz/pyproject.toml
+sed_runner "s/^version = .*/version = \"${NEXT_SHORT_TAG_PEP440}\"/g" python/cudf/pyproject.toml
+sed_runner "s/^version = .*/version = \"${NEXT_SHORT_TAG_PEP440}\"/g" python/dask_cudf/pyproject.toml
+sed_runner "s/^version = .*/version = \"${NEXT_SHORT_TAG_PEP440}\"/g" python/cudf_kafka/pyproject.toml
+sed_runner "s/^version = .*/version = \"${NEXT_SHORT_TAG_PEP440}\"/g" python/custreamz/pyproject.toml
 
 # rapids-cmake version
 sed_runner 's/'"branch-.*\/RAPIDS.cmake"'/'"branch-${NEXT_SHORT_TAG}\/RAPIDS.cmake"'/g' fetch_rapids.cmake
@@ -84,6 +84,11 @@ for FILE in conda/environments/*.yaml dependencies.yaml; do
   sed_runner "s/kvikio==${CURRENT_SHORT_TAG_PEP440}/kvikio==${NEXT_SHORT_TAG_PEP440}/g" ${FILE};
   sed_runner "s/rmm==${CURRENT_SHORT_TAG_PEP440}/rmm==${NEXT_SHORT_TAG_PEP440}/g" ${FILE};
 done
+
+# Dependency versions in dependencies.yaml
+sed_runner "/cudf-cu[0-9]\{2\}==/ s/==.*/==${NEXT_SHORT_TAG_PEP440}.*/g" dependencies.yaml
+sed_runner "/cudf_kafka-cu[0-9]\{2\}==/ s/==.*/==${NEXT_SHORT_TAG_PEP440}.*/g" dependencies.yaml
+sed_runner "/rmm-cu[0-9]\{2\}==/ s/==.*/==${NEXT_SHORT_TAG_PEP440}.*/g" dependencies.yaml
 
 # Doxyfile update
 sed_runner "s|\(TAGFILES.*librmm/\).*|\1${NEXT_SHORT_TAG}|" cpp/doxygen/Doxyfile
