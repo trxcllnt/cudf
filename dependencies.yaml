@@ -204,6 +204,7 @@ dependencies:
             packages:
               - gcc_linux-aarch64=11.*
               - sysroot_linux-aarch64==2.17
+          - {matrix: null, packages: null}
       - output_types: conda
         matrices:
           - matrix:
@@ -216,6 +217,7 @@ dependencies:
               cuda: "11.8"
             packages:
               - nvcc_linux-aarch64=11.8
+          - {matrix: null, packages: null}
   build_cpp:
     common:
       - output_types: conda
@@ -379,7 +381,6 @@ dependencies:
       - output_types: [conda, requirements, pyproject]
         packages:
           - cachetools
-          - cuda-python>=11.7.1,<12.0
           - &numba numba>=0.56.4,<0.57
           - nvtx>=0.2.1
           - packaging
@@ -398,18 +399,26 @@ dependencies:
           - --extra-index-url=https://pypi.nvidia.com
     specific:
       - output_types: conda
-        matrices: [{}]
+        matrices:
+          - matrix: {cuda: "11.8"}
+            packages: &run_cudf_packages_cu11_conda
+              - &cuda_python_cu11 cuda-python>=11.7.1,<12.0
+          - {matrix: {cuda: "11.5"}, packages: *run_cudf_packages_cu11_conda}
+          - {matrix: {cuda: "11.4"}, packages: *run_cudf_packages_cu11_conda}
+          - {matrix: {cuda: "11.2"}, packages: *run_cudf_packages_cu11_conda}
       - output_types: [requirements, pyproject]
         matrices:
           - matrix:
             packages:
               - *cubinlinker_conda
+              - *cuda_python_cu11
               - *cupy_conda
               - *ptxcompiler_conda
               - *rmm_conda
           - matrix: {arch: "x86_64", cuda: "11.8"}
             packages: &run_cudf_packages_cu11_x86_64
               - &cubinlinker_cu11 cubinlinker-cu11
+              - *cuda_python_cu11
               - cupy-cuda11x>=12.0.0
               - &ptxcompiler_cu11 ptxcompiler-cu11
               - *rmm_cu11
@@ -419,6 +428,7 @@ dependencies:
           - matrix: {arch: "aarch64", cuda: "11.8"}
             packages: &run_cudf_packages_cu11_aarch64
               - *cubinlinker_cu11
+              - *cuda_python_cu11
               - cupy-cuda11x -f https://pip.cupy.dev/aarch64 # TODO: Verify that this works.
               - *ptxcompiler_cu11
               - *rmm_cu11
