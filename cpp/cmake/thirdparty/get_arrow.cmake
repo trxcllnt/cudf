@@ -34,13 +34,8 @@ function(find_libarrow_in_python_wheel PYARROW_VERSION)
   # version number soname, just `${MAJOR_VERSION}00`
   set(PYARROW_LIB "libarrow.so.${PYARROW_SO_VER}00")
 
-  find_package(Python REQUIRED)
-  execute_process(
-    COMMAND "${Python_EXECUTABLE}" -c "import pyarrow; print(pyarrow.get_library_dirs()[0])"
-    OUTPUT_VARIABLE CUDF_PYARROW_WHEEL_DIR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-  list(APPEND CMAKE_PREFIX_PATH "${CUDF_PYARROW_WHEEL_DIR}")
+  file(REMOVE "${CMAKE_BINARY_DIR}/cmake/find_modules/FindArrow.cmake")
+
   rapids_find_generate_module(
     Arrow NO_CONFIG
     VERSION "${PYARROW_VERSION}"
@@ -50,9 +45,31 @@ function(find_libarrow_in_python_wheel PYARROW_VERSION)
     HEADER_NAMES arrow/python/arrow_to_pandas.h
   )
 
-  find_package(Arrow ${PYARROW_VERSION} MODULE REQUIRED GLOBAL)
-  add_library(arrow_shared ALIAS Arrow::Arrow)
+  # Insert custom logic to find `libarrow.so` in pyarrow's reported library dir
 
+  file(READ "${CMAKE_BINARY_DIR}/cmake/find_modules/FindArrow.cmake" find_arrow_cmake)
+
+  string(REPLACE
+    "# Prefer using a Config module if it exists for this project"
+[=[
+find_package(Python REQUIRED)
+execute_process(
+  COMMAND "${Python_EXECUTABLE}" -c "import pyarrow; print(pyarrow.get_library_dirs()[0])"
+  OUTPUT_VARIABLE PYARROW_LIBRARY_DIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+list(APPEND CMAKE_PREFIX_PATH "${PYARROW_LIBRARY_DIR}")
+
+# Prefer using a Config module if it exists for this project]=]
+    find_arrow_cmake
+    "${find_arrow_cmake}"
+  )
+
+  string(REPLACE
+    "unset(Arrow_IS_HEADER_ONLY)"
+[=[unset(Arrow_IS_HEADER_ONLY)
+
+if(Arrow_FOUND)
   # When using the libarrow inside a wheel we must build libcudf with the old ABI because pyarrow's
   # `libarrow.so` is compiled for manylinux2014 (centos7 toolchain) which uses the old ABI. Note
   # that these flags will often be redundant because we build wheels in manylinux containers that
@@ -66,6 +83,16 @@ function(find_libarrow_in_python_wheel PYARROW_VERSION)
     Arrow::Arrow INTERFACE "$<$<COMPILE_LANGUAGE:CXX>:-D_GLIBCXX_USE_CXX11_ABI=0>"
                            "$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-D_GLIBCXX_USE_CXX11_ABI=0>"
   )
+endif()
+]=]
+    find_arrow_cmake
+    "${find_arrow_cmake}"
+  )
+
+  file(WRITE "${CMAKE_BINARY_DIR}/cmake/find_modules/FindArrow.cmake" "${find_arrow_cmake}")
+
+  find_package(Arrow ${PYARROW_VERSION} MODULE REQUIRED GLOBAL)
+  add_library(arrow_shared ALIAS Arrow::Arrow)
 
   rapids_export_package(BUILD Arrow cudf-exports)
   rapids_export_package(INSTALL Arrow cudf-exports)
